@@ -27,7 +27,7 @@ public:
 	{
 		if (InUserObject == nullptr)
 		{
-			UE_LOG(LogOxiCombat, Log, TEXT("UCombatManager::RegisterEventListener() - NULL InUseObject. InFunctionName = %s"), *InUserObject->GetFullName(), *InFunctionName.ToString());
+			UE_LOG(LogOxiCombat, Log, TEXT("UCombatManager::RegisterEventListener() - NULL InUseObject. InFunctionName = %s"), *InFunctionName.ToString());
 			return FDelegateHandle();
 		}
 

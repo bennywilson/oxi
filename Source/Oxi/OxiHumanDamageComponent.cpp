@@ -5,6 +5,7 @@
 #include "TimerManager.h"
 #include "Engine/PostProcessVolume.h"
 #include "Kismet/KismetMaterialLibrary.h"
+#include "Components/CapsuleComponent.h"
 
 /** Toggles god mode */
 static TAutoConsoleVariable<int32> CVarGodMode(
@@ -239,7 +240,7 @@ float UOxiHumanDamageComponent::TakeDamage(const FOxiDamageInfo& DamageInfo)
 				SkelMesh->AddImpulse(Impulse, DamageInfo.HitBoneName, true);
 
 				SkelMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Ignore);
-
+				Victim->GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 				GetOwner()->GetWorldTimerManager().SetTimer(RagdollSleepTimerHandle, this, &UOxiDamageComponent::DisableRagdoll, 5.0f, true, 5.0f);
 			}		
 		}
