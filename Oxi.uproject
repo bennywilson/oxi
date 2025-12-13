@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "{A7FD3B59-437F-1CFB-7A17-7A9ED68C5722}",
+	"EngineAssociation": "{05AC717D-4A60-9F1A-85B4-A99436F72FD7}",
 	"Category": "",
 	"Description": "",
 	"Modules": [
@@ -411,6 +411,10 @@
 		},
 		{
 			"Name": "N10XSourceCodeAccess",
+			"Enabled": false
+		},
+		{
+			"Name": "RenderDocPlugin",
 			"Enabled": false
 		}
 	]
