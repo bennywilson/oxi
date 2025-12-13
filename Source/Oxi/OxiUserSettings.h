@@ -9,6 +9,14 @@ class UOxiUserSettings : public UGameUserSettings
 {
 	GENERATED_BODY()
 
+public:
+	virtual void SetToDefaults() override;
+
 	UFUNCTION(BlueprintCallable, Category = Settings)
-	void SetQualityLevel(const int QualityLevel);
+	void SetGraphicsQualityLevel(const int32 QualityLevel);
+
+	// Your custom quality level property
+	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Graphics")
+	int32 GraphicsQualityLevel = INDEX_NONE;
+
 };

@@ -3,16 +3,50 @@
 #include "OxiUserSettings.h"
 #include "Kismet/KismetSystemLibrary.h"
 
-void UOxiUserSettings::SetQualityLevel(const int QualityLevel)
+static FAutoConsoleCommand SetGraphicsQualityLevelCmd(
+	TEXT("Oxi.SetGraphicsQuality"),
+	TEXT("Sets Graphics Quality Level - 0: Low, 1: Medium, 2: High, 3: Epic"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+		{
+			if (Args.Num() >= 1)
+			{
+				const int32 QualityLevel = FCString::Atoi(*Args[0]);
+				if (UOxiUserSettings* Settings = GetMutableDefault<UOxiUserSettings>())
+				{
+					Settings->SetGraphicsQualityLevel(QualityLevel);
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Usage: MyGame.SetSetting <Key> <Value>"));
+			}
+		})
+);
+
+void UOxiUserSettings::SetToDefaults()
 {
-	UE_LOG(LogTemp, Log, TEXT("UOxiGameUserSettings::SetQualityLevel()"));
+	Super::SetToDefaults();
+
+	if (GraphicsQualityLevel == INDEX_NONE)
+	{
+		UE_LOG(LogTemp, Log, TEXT("GraphicsQualityLevel not set, defaulting to 1"));
+
+		GraphicsQualityLevel = 1; // Default to Medium
+		SaveConfig();
+	}
+}
+
+void UOxiUserSettings::SetGraphicsQualityLevel(const int32 QualityLevel)
+{
+	const int ActualQualityLevel = FMath::Clamp(QualityLevel, 0, 4);
+	UE_LOG(LogTemp, Log, TEXT("%s"), *FString::Printf(TEXT("UOxiGameUserSettings::SetQualityLevel(%d)"), ActualQualityLevel));
 	
 	IConsoleManager& ConsoleManager = IConsoleManager::Get();
 	IConsoleVariable* const CVarDynamicGIMethod = ConsoleManager.FindConsoleVariable(TEXT("r.DynamicGlobalIlluminationMethod"));
 	IConsoleVariable* const CVarAAMethod = ConsoleManager.FindConsoleVariable(TEXT("r.AntialiasingMethod"));
 	IConsoleVariable* const CVarLumenDiffuseIndirect = ConsoleManager.FindConsoleVariable(TEXT("r.lumen.DiffuseIndirect.Allow"));
 
-	UKismetSystemLibrary::ExecuteConsoleCommand(GetWorld(), FString::Printf(TEXT("scalability %d"), QualityLevel), nullptr);
+	UKismetSystemLibrary::ExecuteConsoleCommand(GetWorld(), FString::Printf(TEXT("scalability %d"), ActualQualityLevel), nullptr);
 
 	switch(QualityLevel)
 	{
@@ -48,4 +82,6 @@ void UOxiUserSettings::SetQualityLevel(const int QualityLevel)
 			break;
 		}
 	}
+
+	SaveConfig();
 }
