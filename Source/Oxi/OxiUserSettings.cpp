@@ -45,6 +45,7 @@ void UOxiUserSettings::SetGraphicsQualityLevel(const int32 QualityLevel)
 	IConsoleVariable* const CVarDynamicGIMethod = ConsoleManager.FindConsoleVariable(TEXT("r.DynamicGlobalIlluminationMethod"));
 	IConsoleVariable* const CVarAAMethod = ConsoleManager.FindConsoleVariable(TEXT("r.AntialiasingMethod"));
 	IConsoleVariable* const CVarLumenDiffuseIndirect = ConsoleManager.FindConsoleVariable(TEXT("r.lumen.DiffuseIndirect.Allow"));
+	IConsoleVariable* const CVarReflectionMethod = ConsoleManager.FindConsoleVariable(TEXT("r.reflectionmethod"));
 
 	UKismetSystemLibrary::ExecuteConsoleCommand(GetWorld(), FString::Printf(TEXT("scalability %d"), ActualQualityLevel), nullptr);
 
@@ -54,6 +55,7 @@ void UOxiUserSettings::SetGraphicsQualityLevel(const int32 QualityLevel)
 		{
 			CVarDynamicGIMethod->Set(0);
 			CVarLumenDiffuseIndirect->Set(0);
+			CVarReflectionMethod->Set(0);
 			CVarAAMethod->Set(0);
 			break;
 		}
@@ -62,6 +64,7 @@ void UOxiUserSettings::SetGraphicsQualityLevel(const int32 QualityLevel)
 		{
 			CVarDynamicGIMethod->Set(0);
 			CVarLumenDiffuseIndirect->Set(0);
+			CVarReflectionMethod->Set(0);
 			CVarAAMethod->Set(1);
 			break;
 		}
@@ -70,6 +73,7 @@ void UOxiUserSettings::SetGraphicsQualityLevel(const int32 QualityLevel)
 		{
 			CVarDynamicGIMethod->Set(1);
 			CVarLumenDiffuseIndirect->Set(1);
+			CVarReflectionMethod->Set(1);
 			CVarAAMethod->Set(2);
 			break;
 		}
@@ -78,6 +82,7 @@ void UOxiUserSettings::SetGraphicsQualityLevel(const int32 QualityLevel)
 		{
 			CVarDynamicGIMethod->Set(1);
 			CVarLumenDiffuseIndirect->Set(1);
+			CVarReflectionMethod->Set(1);
 			CVarAAMethod->Set(2);
 			break;
 		}
