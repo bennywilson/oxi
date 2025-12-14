@@ -38,9 +38,12 @@ void UOxiUserSettings::SetToDefaults()
 
 void UOxiUserSettings::SetGraphicsQualityLevel(const int32 QualityLevel)
 {
-	const int ActualQualityLevel = FMath::Clamp(QualityLevel, 0, 4);
-	UE_LOG(LogTemp, Log, TEXT("%s"), *FString::Printf(TEXT("UOxiGameUserSettings::SetQualityLevel(%d)"), ActualQualityLevel));
-	
+	UE_LOG(LogTemp, Log, TEXT("%s"), *FString::Printf(TEXT("UOxiGameUserSettings::SetQualityLevel(%d)"), QualityLevel));
+
+	Scalability::FQualityLevels Quality;
+	Quality.SetFromSingleQualityLevel(QualityLevel);
+	Scalability::SetQualityLevels(Quality, true);
+
 	IConsoleManager& ConsoleManager = IConsoleManager::Get();
 	IConsoleVariable* const CVarDynamicGIMethod = ConsoleManager.FindConsoleVariable(TEXT("r.DynamicGlobalIlluminationMethod"));
 	IConsoleVariable* const CVarAAMethod = ConsoleManager.FindConsoleVariable(TEXT("r.AntialiasingMethod"));
@@ -48,47 +51,45 @@ void UOxiUserSettings::SetGraphicsQualityLevel(const int32 QualityLevel)
 	IConsoleVariable* const CVarReflectionMethod = ConsoleManager.FindConsoleVariable(TEXT("r.reflectionmethod"));
 	IConsoleVariable* const CVarMaxRoughnessToTrace = ConsoleManager.FindConsoleVariable(TEXT("r.Lumen.Reflections.MaxRoughnessToTrace"));
 
-	UKismetSystemLibrary::ExecuteConsoleCommand(GetWorld(), FString::Printf(TEXT("scalability %d"), ActualQualityLevel), nullptr);
-
 	switch(QualityLevel)
 	{
 		case 0:
 		{
-			CVarDynamicGIMethod->Set(0);
-			CVarLumenDiffuseIndirect->Set(0);
-			CVarReflectionMethod->Set(0);
-			CVarAAMethod->Set(0);
-			CVarMaxRoughnessToTrace->Set(-1.f);
+			CVarDynamicGIMethod->Set(0, ECVF_SetByConsole);
+			CVarLumenDiffuseIndirect->Set(0, ECVF_SetByConsole);
+			CVarReflectionMethod->Set(0, ECVF_SetByConsole);
+			CVarAAMethod->Set(0, ECVF_SetByConsole);
+			CVarMaxRoughnessToTrace->Set(-1.f, ECVF_SetByConsole);
 			break;
 		}
 
 		case 1:
 		{
-			CVarDynamicGIMethod->Set(0);
-			CVarLumenDiffuseIndirect->Set(0);
-			CVarReflectionMethod->Set(0);
-			CVarAAMethod->Set(1);
-			CVarMaxRoughnessToTrace->Set(-1.f);
+			CVarDynamicGIMethod->Set(0, ECVF_SetByConsole);
+			CVarLumenDiffuseIndirect->Set(0, ECVF_SetByConsole);
+			CVarReflectionMethod->Set(0, ECVF_SetByConsole);
+			CVarAAMethod->Set(1, ECVF_SetByConsole);
+			CVarMaxRoughnessToTrace->Set(-1.f, ECVF_SetByConsole);
 			break;
 		}
 
 		case 2: 
 		{
-			CVarDynamicGIMethod->Set(1);
-			CVarLumenDiffuseIndirect->Set(1);
-			CVarReflectionMethod->Set(1);
-			CVarAAMethod->Set(2);
-			CVarMaxRoughnessToTrace->Set(0.4f);
+			CVarDynamicGIMethod->Set(1, ECVF_SetByConsole);
+			CVarLumenDiffuseIndirect->Set(1, ECVF_SetByConsole);
+			CVarReflectionMethod->Set(1, ECVF_SetByConsole);
+			CVarAAMethod->Set(2, ECVF_SetByConsole);
+			CVarMaxRoughnessToTrace->Set(0.4f, ECVF_SetByConsole);
 			break;
 		}
 
 		case 3:
 		{
-			CVarDynamicGIMethod->Set(1);
-			CVarLumenDiffuseIndirect->Set(1);
-			CVarReflectionMethod->Set(1);
-			CVarAAMethod->Set(2);
-			CVarMaxRoughnessToTrace->Set(1.0f);
+			CVarDynamicGIMethod->Set(1, ECVF_SetByConsole);
+			CVarLumenDiffuseIndirect->Set(1, ECVF_SetByConsole);
+			CVarReflectionMethod->Set(1, ECVF_SetByConsole);
+			CVarAAMethod->Set(2, ECVF_SetByConsole);
+			CVarMaxRoughnessToTrace->Set(1.0f, ECVF_SetByConsole);
 			break;
 		}
 	}
