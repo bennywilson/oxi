@@ -38,6 +38,9 @@ struct FOxiDamageInfo
 	AActor* DamageCauser = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	class AOxiWeapon* DamageWeapon = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName HitBoneName;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -64,6 +67,16 @@ struct FWoundFXData
 	TArray<FName> TagsOfComponentsToEnable;
 };
 
+UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
+enum EWoundLevel : uint8
+{
+	None	= 0 UMETA(Hidden),
+	Light	= 1 << 0,
+	Medium	= 1 << 1,
+	Heavy	= 1 << 2,
+};
+ENUM_CLASS_FLAGS(EWoundLevel)
+
 USTRUCT(BlueprintType)
 struct FWoundData
 {
@@ -89,6 +102,9 @@ struct FWoundData
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FWoundFXData GibFX;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Bitmask, BitmaskEnum = "/Script/Oxi.EWoundLevel"))
+	int32 WoundLevel;
 };
 
 struct FWoundInstance

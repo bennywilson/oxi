@@ -109,80 +109,79 @@ float UOxiHumanDamageComponent::TakeDamage(const FOxiDamageInfo& DamageInfo)
 		{
 			USkeletalMeshComponent* const SkelMesh = SkeletalMeshes[i];
 
-			if (bAddedWound == false && WoundInstances.Num() < 1)
+			if (DamageInfo.DamageWeapon && !bAddedWound && WoundInstances.Num() < 1)
 			{
 				bAddedWound = true;
 				for (int iWoundSearch = 0; iWoundSearch < WoundData.Num(); iWoundSearch++)
 				{
 					const FWoundData& CurWoundData = WoundData[iWoundSearch];
 
-					static const FName AnyBone = { "Any" };
-					if (CurWoundData.BoneName == AnyBone || CurWoundData.BoneName == DamageInfo.HitBoneName)
+					if (!(CurWoundData.WoundLevel | DamageInfo.DamageWeapon->GetWoundLevel()))
 					{
-						FWoundInstance WoundInfo;
-						WoundInfo.BoneName = DamageInfo.HitBoneName;
-						WoundInfo.WoundIndex = iWoundSearch;
-						WoundInfo.HitLocation = SkelMesh->GetBoneLocation(DamageInfo.HitBoneName, EBoneSpaces::ComponentSpace);
-						WoundInfo.HitTime = UnpausedTimeSec;
-						WoundInstances.Add(WoundInfo);
-						bAddedWound = true;
-
-						const FWoundFXData& WoundFX = CurWoundData.WoundFX;
-						if (WoundFX.AttachSocket != NAME_None && WoundFX.DismembermentFX != nullptr)
-						{
-							AActor* const FXActor = GetWorld()->SpawnActor(WoundFX.DismembermentFX, &GetComponentTransform());
-							FXActor->AttachToComponent(SkelMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, WoundFX.AttachSocket);
-
-							for (int iComponentName = 0; iComponentName < WoundFX.TagsOfComponentsToEnable.Num(); iComponentName++)
-							{
-								const FName ComponentTag = WoundFX.TagsOfComponentsToEnable[iComponentName];
-								if (ComponentTag == NAME_None)
-								{
-									continue;
-								}
-
-								for (int iCap = 0; iCap < AllChildren.Num(); iCap++)
-								{
-									if (AllChildren[iCap]->ComponentHasTag(ComponentTag))
-									{
-										AllChildren[iCap]->SetVisibility(true);
-										break;
-									}
-								}
-
-							}
-						}
-
-						const FWoundFXData& GibFX = CurWoundData.GibFX;
-						if (GibFX.AttachSocket != NAME_None)
-						{
-							if (GibFX.DismembermentFX != nullptr)
-							{
-								FVector SocketLocation;
-								FQuat SocketRotation;
-								SkelMesh->GetSocketWorldLocationAndRotation(GibFX.AttachSocket, SocketLocation, SocketRotation);
-
-								FTransform SocketTransform(SocketRotation, SocketLocation);
-								AActor* const FXActor = GetWorld()->SpawnActor(GibFX.DismembermentFX, &SocketTransform);
-								UStaticMeshComponent* SM = Cast<UStaticMeshComponent>(FXActor->GetComponentByClass(UStaticMeshComponent::StaticClass()));
-								if (SM != nullptr)
-								{
-									SM->AddImpulse(Impulse * 2.0f, NAME_None, true);
-								}
-							}
-						}
-						break;
+						continue;
 					}
+
+					static const FName AnyBone = { "Any" };
+					if (CurWoundData.BoneName != AnyBone && CurWoundData.BoneName != DamageInfo.HitBoneName)
+					{
+						continue;
+					}
+			
+					FWoundInstance WoundInfo;
+					WoundInfo.BoneName = DamageInfo.HitBoneName;
+					WoundInfo.WoundIndex = iWoundSearch;
+					WoundInfo.HitLocation = SkelMesh->GetBoneLocation(DamageInfo.HitBoneName, EBoneSpaces::ComponentSpace);
+					WoundInfo.HitTime = UnpausedTimeSec;
+					WoundInstances.Add(WoundInfo);
+					bAddedWound = true;
+
+					const FWoundFXData& WoundFX = CurWoundData.WoundFX;
+					if (WoundFX.AttachSocket != NAME_None && WoundFX.DismembermentFX != nullptr)
+					{
+						AActor* const FXActor = GetWorld()->SpawnActor(WoundFX.DismembermentFX, &GetComponentTransform());
+						FXActor->AttachToComponent(SkelMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, WoundFX.AttachSocket);
+
+						for (int iComponentName = 0; iComponentName < WoundFX.TagsOfComponentsToEnable.Num(); iComponentName++)
+						{
+							const FName ComponentTag = WoundFX.TagsOfComponentsToEnable[iComponentName];
+							if (ComponentTag == NAME_None)
+							{
+								continue;
+							}
+
+							for (int iCap = 0; iCap < AllChildren.Num(); iCap++)
+							{
+								if (AllChildren[iCap]->ComponentHasTag(ComponentTag))
+								{
+									AllChildren[iCap]->SetVisibility(true);
+									break;
+								}
+							}
+
+						}
+					}
+
+					const FWoundFXData& GibFX = CurWoundData.GibFX;
+					if (GibFX.AttachSocket != NAME_None)
+					{
+						if (GibFX.DismembermentFX != nullptr)
+						{
+							FVector SocketLocation;
+							FQuat SocketRotation;
+							SkelMesh->GetSocketWorldLocationAndRotation(GibFX.AttachSocket, SocketLocation, SocketRotation);
+
+							FTransform SocketTransform(SocketRotation, SocketLocation);
+							AActor* const FXActor = GetWorld()->SpawnActor(GibFX.DismembermentFX, &SocketTransform);
+							UStaticMeshComponent* SM = Cast<UStaticMeshComponent>(FXActor->GetComponentByClass(UStaticMeshComponent::StaticClass()));
+							if (SM != nullptr)
+							{
+								SM->AddImpulse(Impulse * 2.0f, NAME_None, true);
+							}
+						}
+					}
+					break;
 				}
 			}
-
-			// FX
-			/*
-			const FReferenceSkeleton& RefSkeleton = SkelMesh->SkeletalMesh->RefSkeleton;
-			const FTransform LocalToWorld = SkelMesh->GetComponentTransform();
-			const FTransform LocalToRef = LocalToWorld.Inverse() * RefSkeleton.
-			FVector3 HitLocation = DamageInfo.DamageLocation * SkelMesh->Transform
-			*/
 
 			static const FName ClipParams[] = { "WoundClip1_Params", "WoundClip2_Params"};
 			static const FName BoneParams[] = { "Wound1_Params", "Wound2_Params" };
@@ -254,6 +253,7 @@ float UOxiHumanDamageComponent::TakeDamage(const FOxiDamageInfo& DamageInfo)
 	{
 		OnTakeDamage.Broadcast(GetOwner(), DamageInfo);
 	}
+
 	return 0.f;
 }
 

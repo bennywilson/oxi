@@ -28,15 +28,7 @@
 			"Enabled": false
 		},
 		{
-			"Name": "WmfMedia",
-			"Enabled": false
-		},
-		{
 			"Name": "MobileLauncherProfileWizard",
-			"Enabled": false
-		},
-		{
-			"Name": "WindowsMoviePlayer",
 			"Enabled": false
 		},
 		{
@@ -416,6 +408,14 @@
 		{
 			"Name": "RenderDocPlugin",
 			"Enabled": false
+		},
+		{
+			"Name": "MfMedia",
+			"Enabled": true
+		},
+		{
+			"Name": "MediaFrameworkUtilities",
+			"Enabled": true
 		}
 	]
 }

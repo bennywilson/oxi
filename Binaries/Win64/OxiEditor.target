@@ -4300,6 +4300,46 @@
 			"Type": "RequiredResource"
 		},
 		{
+			"Path": "$(EngineDir)/Plugins/Compositing/OpenCVLensDistortion/Binaries/Win64/UnrealEditor-OpenCVLensCalibration.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Compositing/OpenCVLensDistortion/Binaries/Win64/UnrealEditor-OpenCVLensCalibration.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Compositing/OpenCVLensDistortion/Binaries/Win64/UnrealEditor-OpenCVLensDistortion.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Compositing/OpenCVLensDistortion/Binaries/Win64/UnrealEditor-OpenCVLensDistortion.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Compositing/OpenCVLensDistortion/Binaries/Win64/UnrealEditor.modules",
+			"Type": "RequiredResource"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Compositing/OpenColorIO/Binaries/Win64/UnrealEditor-OpenColorIO.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Compositing/OpenColorIO/Binaries/Win64/UnrealEditor-OpenColorIO.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Compositing/OpenColorIO/Binaries/Win64/UnrealEditor-OpenColorIOEditor.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Compositing/OpenColorIO/Binaries/Win64/UnrealEditor-OpenColorIOEditor.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Compositing/OpenColorIO/Binaries/Win64/UnrealEditor.modules",
+			"Type": "RequiredResource"
+		},
+		{
 			"Path": "$(EngineDir)/Plugins/Developer/AnimationSharing/Binaries/Win64/UnrealEditor-AnimationSharing.dll",
 			"Type": "DynamicLibrary"
 		},
@@ -5476,6 +5516,114 @@
 			"Type": "RequiredResource"
 		},
 		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaFrameworkUtilities/Binaries/Win64/UnrealEditor-MediaFrameworkUtilities.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaFrameworkUtilities/Binaries/Win64/UnrealEditor-MediaFrameworkUtilities.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaFrameworkUtilities/Binaries/Win64/UnrealEditor-MediaFrameworkUtilitiesEditor.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaFrameworkUtilities/Binaries/Win64/UnrealEditor-MediaFrameworkUtilitiesEditor.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaFrameworkUtilities/Binaries/Win64/UnrealEditor.modules",
+			"Type": "RequiredResource"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaIOFramework/Binaries/Win64/UnrealEditor-GPUTextureTransfer.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaIOFramework/Binaries/Win64/UnrealEditor-GPUTextureTransfer.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaIOFramework/Binaries/Win64/UnrealEditor-MediaIOCore.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaIOFramework/Binaries/Win64/UnrealEditor-MediaIOCore.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaIOFramework/Binaries/Win64/UnrealEditor-MediaIOEditor.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaIOFramework/Binaries/Win64/UnrealEditor-MediaIOEditor.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaIOFramework/Binaries/Win64/UnrealEditor.modules",
+			"Type": "RequiredResource"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaPlayerEditor/Binaries/Win64/UnrealEditor-MediaPlayerEditor.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaPlayerEditor/Binaries/Win64/UnrealEditor-MediaPlayerEditor.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaPlayerEditor/Binaries/Win64/UnrealEditor.modules",
+			"Type": "RequiredResource"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MfMedia/Binaries/Win64/UnrealEditor-MfMediaEditor.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MfMedia/Binaries/Win64/UnrealEditor-MfMediaEditor.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MfMedia/Binaries/Win64/UnrealEditor-MfMediaFactory.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MfMedia/Binaries/Win64/UnrealEditor-MfMediaFactory.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MfMedia/Binaries/Win64/UnrealEditor.modules",
+			"Type": "RequiredResource"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/WmfMedia/Binaries/Win64/UnrealEditor-WmfMedia.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/WmfMedia/Binaries/Win64/UnrealEditor-WmfMedia.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/WmfMedia/Binaries/Win64/UnrealEditor-WmfMediaEditor.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/WmfMedia/Binaries/Win64/UnrealEditor-WmfMediaEditor.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/WmfMedia/Binaries/Win64/UnrealEditor-WmfMediaFactory.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/WmfMedia/Binaries/Win64/UnrealEditor-WmfMediaFactory.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/WmfMedia/Binaries/Win64/UnrealEditor.modules",
+			"Type": "RequiredResource"
+		},
+		{
 			"Path": "$(EngineDir)/Plugins/Messaging/TcpMessaging/Binaries/Win64/UnrealEditor-TcpMessaging.dll",
 			"Type": "DynamicLibrary"
 		},
@@ -6092,6 +6240,18 @@
 			"Type": "RequiredResource"
 		},
 		{
+			"Path": "$(EngineDir)/Plugins/Runtime/OpenCV/Binaries/Win64/UnrealEditor-OpenCVHelper.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Runtime/OpenCV/Binaries/Win64/UnrealEditor-OpenCVHelper.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Runtime/OpenCV/Binaries/Win64/UnrealEditor.modules",
+			"Type": "RequiredResource"
+		},
+		{
 			"Path": "$(EngineDir)/Plugins/Runtime/ProceduralMeshComponent/Binaries/Win64/UnrealEditor-ProceduralMeshComponent.dll",
 			"Type": "DynamicLibrary"
 		},
@@ -6173,6 +6333,18 @@
 		},
 		{
 			"Path": "$(EngineDir)/Plugins/Runtime/WindowsDeviceProfileSelector/Binaries/Win64/UnrealEditor.modules",
+			"Type": "RequiredResource"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Runtime/WindowsMoviePlayer/Binaries/Win64/UnrealEditor-WindowsMoviePlayer.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Runtime/WindowsMoviePlayer/Binaries/Win64/UnrealEditor-WindowsMoviePlayer.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Runtime/WindowsMoviePlayer/Binaries/Win64/UnrealEditor.modules",
 			"Type": "RequiredResource"
 		},
 		{
@@ -7699,6 +7871,10 @@
 		},
 		{
 			"Path": "$(EngineDir)/Binaries/ThirdParty/MaterialX/libraries/targets/genosl.mtlx",
+			"Type": "NonUFS"
+		},
+		{
+			"Path": "$(EngineDir)/Binaries/ThirdParty/NVIDIA/GPUDirect/Win64/dvp.dll",
 			"Type": "NonUFS"
 		},
 		{
@@ -29350,6 +29526,14 @@
 			"Type": "UFS"
 		},
 		{
+			"Path": "$(EngineDir)/Plugins/Compositing/OpenCVLensDistortion/OpenCVLensDistortion.uplugin",
+			"Type": "UFS"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Compositing/OpenColorIO/OpenColorIO.uplugin",
+			"Type": "UFS"
+		},
+		{
 			"Path": "$(EngineDir)/Plugins/Developer/AnimationSharing/AnimationSharing.uplugin",
 			"Type": "UFS"
 		},
@@ -29542,6 +29726,10 @@
 			"Type": "UFS"
 		},
 		{
+			"Path": "$(EngineDir)/Plugins/Experimental/PythonFoundationPackages/PythonFoundationPackages.uplugin",
+			"Type": "UFS"
+		},
+		{
 			"Path": "$(EngineDir)/Plugins/Experimental/PythonScriptPlugin/PythonScriptPlugin.uplugin",
 			"Type": "UFS"
 		},
@@ -29587,6 +29775,26 @@
 		},
 		{
 			"Path": "$(EngineDir)/Plugins/MassInsights/MassInsights.uplugin",
+			"Type": "UFS"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaFrameworkUtilities/MediaFrameworkUtilities.uplugin",
+			"Type": "UFS"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaIOFramework/MediaIOFramework.uplugin",
+			"Type": "UFS"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MediaPlayerEditor/MediaPlayerEditor.uplugin",
+			"Type": "UFS"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/MfMedia/MfMedia.uplugin",
+			"Type": "UFS"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Media/WmfMedia/WmfMedia.uplugin",
 			"Type": "UFS"
 		},
 		{
@@ -29710,6 +29918,14 @@
 			"Type": "UFS"
 		},
 		{
+			"Path": "$(EngineDir)/Plugins/Runtime/OpenCV/Binaries/ThirdParty/Win64/opencv_world455.dll",
+			"Type": "NonUFS"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Runtime/OpenCV/OpenCV.uplugin",
+			"Type": "UFS"
+		},
+		{
 			"Path": "$(EngineDir)/Plugins/Runtime/ProceduralMeshComponent/ProceduralMeshComponent.uplugin",
 			"Type": "UFS"
 		},
@@ -29727,6 +29943,10 @@
 		},
 		{
 			"Path": "$(EngineDir)/Plugins/Runtime/WindowsDeviceProfileSelector/WindowsDeviceProfileSelector.uplugin",
+			"Type": "UFS"
+		},
+		{
+			"Path": "$(EngineDir)/Plugins/Runtime/WindowsMoviePlayer/WindowsMoviePlayer.uplugin",
 			"Type": "UFS"
 		},
 		{
@@ -29814,10 +30034,14 @@
 		"MacGraphicsSwitching",
 		"MassInsights",
 		"MaterialAnalyzer",
+		"MediaFrameworkUtilities",
+		"MediaIOFramework",
+		"MediaPlayerEditor",
 		"MeshLODToolset",
 		"MeshModelingToolset",
 		"MeshModelingToolsetExp",
 		"MetaHumanSDK",
+		"MfMedia",
 		"ModelingToolsEditorMode",
 		"NFORDenoise",
 		"NNEDenoiser",
@@ -29834,6 +30058,9 @@
 		"OnlineSubsystemIOS",
 		"OnlineSubsystemNull",
 		"OnlineSubsystemUtils",
+		"OpenCV",
+		"OpenCVLensDistortion",
+		"OpenColorIO",
 		"PlanarCut",
 		"PluginBrowser",
 		"PluginUtils",
@@ -29841,6 +30068,7 @@
 		"ProjectLauncher",
 		"PropertyAccessEditor",
 		"ProxyLODPlugin",
+		"PythonFoundationPackages",
 		"PythonScriptPlugin",
 		"RigLogic",
 		"RigVM",
@@ -29864,6 +30092,8 @@
 		"VariantManagerContent",
 		"VisualStudioSourceCodeAccess",
 		"WindowsDeviceProfileSelector",
+		"WindowsMoviePlayer",
+		"WmfMedia",
 		"XCodeSourceCodeAccess",
 		"XInputDevice"
 	],

@@ -384,7 +384,7 @@ void AOxiFirstPersonCharacter::SetupPlayerInputComponent(class UInputComponent* 
 		EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Completed, this, &AOxiFirstPersonCharacter::OnStopFire);
 		EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Triggered, this, &AOxiFirstPersonCharacter::TryReload);
 		EnhancedInputComponent->BindAction(SwapWeaponAction, ETriggerEvent::Triggered, this, &AOxiFirstPersonCharacter::TrySwitchWeapon);
-		EnhancedInputComponent->BindAction(AimDownSightsAction, ETriggerEvent::Started, this, &AOxiFirstPersonCharacter::StartADS);
+		EnhancedInputComponent->BindAction(AimDownSightsAction, ETriggerEvent::Ongoing, this, &AOxiFirstPersonCharacter::StartADS);
 		EnhancedInputComponent->BindAction(AimDownSightsAction, ETriggerEvent::Completed, this, &AOxiFirstPersonCharacter::EndADS);
 	}
 	else
@@ -594,6 +594,11 @@ void AOxiFirstPersonCharacter::StartADS_Implementation()
 
 void AOxiFirstPersonCharacter::EndADS_Implementation()
 {
+	if (!AimingDownSights)
+	{
+		return;
+	}
+
 	AimingDownSights = false;
 	AimingDownSightsEndTime = this->GetWorld()->GetUnpausedTimeSeconds();
 	AimingDownSightsElapsedTime = 0;
