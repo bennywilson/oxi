@@ -5,6 +5,10 @@
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLightingQualityChanged, EOxiQualityLevelFlags);
 
+
+/**
+ *
+ */
 UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
 enum class EOxiQualityLevelFlags : uint32
 {
@@ -16,8 +20,11 @@ enum class EOxiQualityLevelFlags : uint32
 };
 ENUM_CLASS_FLAGS(EOxiQualityLevelFlags);
 
+/**
+ *
+ */
 UCLASS(config = GameUserSettings, defaultconfig, BlueprintType, Blueprintable, meta = (DisplayName = "Oxi User Settings"))
-class UOxiUserSettings : public UGameUserSettings
+class OXI_API UOxiUserSettings : public UGameUserSettings
 {
 	GENERATED_BODY()
 
@@ -27,12 +34,17 @@ public:
 	virtual void SetToDefaults() override;
 
 	UFUNCTION(BlueprintCallable, Category = Settings)
-	void SetGraphicsQualityLevel(const int32 QualityLevel);
+	void SetGraphicsQualityLevel(const int32 QualityLevel, const bool force);
 
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Graphics")
 	EOxiQualityLevelFlags GraphicsQualityLevel = EOxiQualityLevelFlags::None;
+
+	static UOxiUserSettings* GetOxiUserSettings();
 };
 
+/**
+ *
+ */
 UCLASS(ClassGroup = (Lighting), meta = (BlueprintSpawnableComponent), HideCategories = (Activation, Collision, Cooking, AssetUserData, Tags, ComponentReplication, Rendering, LOD, Physics, Mobility, Replication, Events, Input))
 class UOxiLightQualityComponent : public UActorComponent
 {
@@ -46,8 +58,19 @@ protected:
 #endif
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (Bitmask, BitmaskEnum = "/Script/Oxi.EOxiQualityLevelFlags"))
-	int32 QualityMask;
+	int32 LightVisibilityMask;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (Bitmask, BitmaskEnum = "/Script/Oxi.EOxiQualityLevelFlags"))
+	int32 CastShadowMask;
 
 private:
 	void UpdateLight(const EOxiQualityLevelFlags NewQualitySetting);
 };
+
+inline int32 ToInt32(EOxiQualityLevelFlags QualityLevel)
+{
+	const int32 QualityMask = (int32)QualityLevel;
+	ensureMsgf(QualityMask && !(QualityMask & (QualityMask - 1)), TEXT("ToInt32(EOxiQualityLevelFlags) called with invalid bitmask: %d. Expected exactly one bit set."), QualityMask);
+	return FMath::FloorLog2(QualityMask);
+
+}

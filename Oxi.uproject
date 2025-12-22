@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "{05AC717D-4A60-9F1A-85B4-A99436F72FD7}",
+	"EngineAssociation": "{F0054A4D-4D2F-148D-E2A8-C89D1D251C4E}",
 	"Category": "",
 	"Description": "",
 	"Modules": [
@@ -12,6 +12,10 @@
 				"Engine",
 				"PhysicsCore"
 			]
+		},
+		{
+			"Name": "OxiEditor",
+			"Type": "Editor"
 		}
 	],
 	"Plugins": [

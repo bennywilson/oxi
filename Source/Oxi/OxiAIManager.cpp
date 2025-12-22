@@ -2,7 +2,7 @@
 
 #include "OxiAIManager.h"
 #include "Kismet/GameplayStatics.h"
-#include "OxiHumanDamageComponent.h"
+#include "Components/OxiHumanDamageComponent.h"
 #include "AIController.h"
 #include "Navigation/PathFollowingComponent.h"
 

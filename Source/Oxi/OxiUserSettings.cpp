@@ -1,13 +1,14 @@
 // OXI 2025
 
 #include "OxiUserSettings.h"
+#include "Oxi.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Components/LightComponentBase.h"
 
 /**
  *
  */
-static UOxiUserSettings* GetOxiUserSettings()
+UOxiUserSettings* UOxiUserSettings::GetOxiUserSettings()
 {
 	if (!GEngine)
 	{
@@ -28,10 +29,10 @@ static FAutoConsoleCommand SetGraphicsQualityLevelCmd(
 			if (Args.Num() >= 1)
 			{
 				const int32 QualityLevel = FCString::Atoi(*Args[0]);
-				UOxiUserSettings* const Settings = GetOxiUserSettings();
+				UOxiUserSettings* const Settings = UOxiUserSettings::GetOxiUserSettings();
 				if (Settings)
 				{
-					Settings->SetGraphicsQualityLevel(QualityLevel);
+					Settings->SetGraphicsQualityLevel(QualityLevel, false);
 				}
 			}
 			else
@@ -60,9 +61,27 @@ void UOxiUserSettings::SetToDefaults()
 /**
  *
  */
-void UOxiUserSettings::SetGraphicsQualityLevel(const int32 QualityLevel)
+void UOxiUserSettings::SetGraphicsQualityLevel(const int32 QualityLevel, const bool Force)
 {
-	UE_LOG(LogTemp, Log, TEXT("%s"), *FString::Printf(TEXT("UOxiGameUserSettings::SetQualityLevel(%d)"), QualityLevel));
+	UE_LOG(LogOxi, Log, TEXT("%s"), *FString::Printf(TEXT("UOxiGameUserSettings::SetQualityLevel(%d)"), QualityLevel));
+
+	if (!Force)
+	{
+		EOxiQualityLevelFlags TargetQuality = EOxiQualityLevelFlags::Medium;
+		switch (QualityLevel)
+		{
+			case 0: TargetQuality = EOxiQualityLevelFlags::Low; break;
+			case 1: TargetQuality = EOxiQualityLevelFlags::Medium; break;
+			case 2: TargetQuality = EOxiQualityLevelFlags::High; break;
+			case 3: TargetQuality = EOxiQualityLevelFlags::Ultra; break;
+		}
+
+		if (TargetQuality == GraphicsQualityLevel)
+		{
+			UE_LOG(LogTemp, Log, TEXT("%s"), *FString::Printf(TEXT("UOxiGameUserSettings::SetQualityLevel(%d)"), QualityLevel));
+			return;
+		}
+	}
 
 	Scalability::FQualityLevels Quality;
 	Quality.SetFromSingleQualityLevel(QualityLevel);
@@ -118,16 +137,16 @@ void UOxiUserSettings::SetGraphicsQualityLevel(const int32 QualityLevel)
 		}
 	}
 
-	EOxiQualityLevelFlags QualityFlag = EOxiQualityLevelFlags::Medium;
+	GraphicsQualityLevel = EOxiQualityLevelFlags::Medium;
 	switch(QualityLevel)
 	{
-		case 0: QualityFlag = EOxiQualityLevelFlags::Low; break;
-		case 1: QualityFlag = EOxiQualityLevelFlags::Medium; break;
-		case 2: QualityFlag = EOxiQualityLevelFlags::High; break;
-		case 3: QualityFlag = EOxiQualityLevelFlags::Ultra; break;
+		case 0: GraphicsQualityLevel = EOxiQualityLevelFlags::Low; break;
+		case 1: GraphicsQualityLevel = EOxiQualityLevelFlags::Medium; break;
+		case 2: GraphicsQualityLevel = EOxiQualityLevelFlags::High; break;
+		case 3: GraphicsQualityLevel = EOxiQualityLevelFlags::Ultra; break;
 	}
 
-	OnLightingQualityChanged.Broadcast(QualityFlag);
+	OnLightingQualityChanged.Broadcast(GraphicsQualityLevel);
 
 	SaveConfig();
 }
@@ -139,7 +158,7 @@ void UOxiLightQualityComponent::OnRegister()
 {
 	Super::OnRegister();
 
-	UOxiUserSettings *const Settings = GetOxiUserSettings();
+	UOxiUserSettings *const Settings = UOxiUserSettings::GetOxiUserSettings();
 	if (Settings)
 	{	
 		UpdateLight(Settings->GraphicsQualityLevel);
@@ -158,7 +177,7 @@ void UOxiLightQualityComponent::PostEditChangeProperty(FPropertyChangedEvent& Ev
 {
 	Super::PostEditChangeProperty(Event);
 
-	if (UOxiUserSettings* Settings = GetOxiUserSettings())
+	if (UOxiUserSettings* Settings = UOxiUserSettings::GetOxiUserSettings())
 	{
 		UpdateLight(Settings->GraphicsQualityLevel);
 	}
@@ -175,18 +194,13 @@ void UOxiLightQualityComponent::UpdateLight(const EOxiQualityLevelFlags NewQuali
 		return;
 	}
 
+	const uint32 NewSetting = (uint32)NewQualitySetting;
 	auto LightComp = GetOwner()->FindComponentByClass<ULightComponentBase>();
 	if (!LightComp)
 	{
 		return;
 	}
 
-	if ((uint32)NewQualitySetting & QualityMask)
-	{
-		LightComp->SetVisibility(true);
-	}
-	else
-	{
-		LightComp->SetVisibility(false);
-	}
+	LightComp->SetVisibility(NewSetting & LightVisibilityMask);
+	LightComp->SetCastShadows(NewSetting & CastShadowMask);
 }

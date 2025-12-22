@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
-#include "OxiDamageComponent.h"
+#include "Components/OxiDamageComponent.h"
 #include "OxiWeapon.generated.h"
 
 /**

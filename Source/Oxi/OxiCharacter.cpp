@@ -16,7 +16,7 @@
 #include "OxiAIManager.h"
 #include "OxiCheatManager.h"
 #include "OxiGameMode.h"
-#include "OxiHumanDamageComponent.h"
+#include "Components/OxiHumanDamageComponent.h"
 #include "OxiWeapon.h"
 #include <KismetTraceUtils.h>
 

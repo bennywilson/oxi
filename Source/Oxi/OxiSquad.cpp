@@ -3,7 +3,7 @@
 #include "OxiSquad.h"
 #include "Kismet/GameplayStatics.h"
 #include "OxiAIManager.h"
-#include "OxiHumanDamageComponent.h"
+#include "Components/OxiHumanDamageComponent.h"
 #include "AIController.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "DrawDebugHelpers.h"

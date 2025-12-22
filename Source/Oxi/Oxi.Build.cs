@@ -7,8 +7,12 @@ public class Oxi : ModuleRules
 	public Oxi(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-	
-        PublicDependencyModuleNames.AddRange(
+
+		PublicIncludePaths.AddRange(new string[] {
+			"Oxi"
+		});
+
+		PublicDependencyModuleNames.AddRange(
 			new string[] {
 				"AIModule",
 				"Core",

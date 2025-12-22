@@ -6,7 +6,7 @@
 #include "GameFramework/Character.h"
 #include "OxiWeapon.h"
 #include "OxiCover.h"
-#include "OxiDamageComponent.h"
+#include "Components/OxiDamageComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "OxiCharacter.generated.h"
 
