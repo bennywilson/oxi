@@ -6,6 +6,9 @@
 #include "EditorSubsystem.h"
 #include "OxiEditorSubsystem.generated.h"
 
+/**
+ *
+ **/
 UCLASS()
 class UOxiEditorSubsystem : public UEditorSubsystem
 {

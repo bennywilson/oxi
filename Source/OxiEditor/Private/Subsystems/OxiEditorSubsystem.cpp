@@ -4,6 +4,9 @@
 #include "OxiUserSettings.h"
 #include "Engine/Engine.h"
 
+/**
+ *
+ **/
 void UOxiEditorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
@@ -20,6 +23,9 @@ void UOxiEditorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 #endif
 }
 
+/**
+ *
+ **/
 void UOxiEditorSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
