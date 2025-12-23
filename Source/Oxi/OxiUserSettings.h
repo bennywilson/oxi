@@ -1,5 +1,7 @@
 // OXI 2025
 
+#pragma once
+
 #include "GameFramework/GameUserSettings.h"
 #include "OxiUserSettings.generated.h"
 
