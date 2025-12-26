@@ -260,9 +260,7 @@ void AOxiFirstPersonCharacter::BeginPlay()
 	//Attach gun mesh component to Skeleton, doing it here because the skeleton is not yet created in the constructor
 	FName PlayerSocketToAttachTo = "RightHandAttachSocket";
 
-	EquippedItem = GWorld->SpawnActor<AOxiWeapon>(DefaultWeapon, FVector::ZeroVector, FRotator::ZeroRotator);
-	EquippedItem->AttachToComponent(Mesh1P, FAttachmentTransformRules::SnapToTargetNotIncludingScale, PlayerSocketToAttachTo);
-	EquippedItem->SetActorRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
+//	TrySwitchWeapon();
 	Mesh1P->SetHiddenInGame(false, true);
 
 	HandsMaterial = Mesh1P->CreateDynamicMaterialInstance(0);
@@ -373,7 +371,7 @@ void AOxiFirstPersonCharacter::TickActor(float DeltaTime, enum ELevelTick TickTy
 
 void AOxiFirstPersonCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
 {
-	// Set up action bindings
+	// Set up action bindingsequipped
 	if (UEnhancedInputComponent* const EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AOxiFirstPersonCharacter::Move);
