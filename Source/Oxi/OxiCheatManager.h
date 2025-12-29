@@ -14,6 +14,9 @@ class OXI_API UOxiCheatManager : public UCheatManager
 {
 	GENERATED_BODY()
 	
-	UFUNCTION(exec, BlueprintCallable, Category = "Cheat Manager")
+	UFUNCTION(exec, BlueprintCallable, Category = "Oxi | Cheat Manager")
 	virtual void WarpToCheckPoint(FString CheckPointName);
+
+	UFUNCTION(exec, BlueprintCallable, Category = "Oxi | Cheat Manager")
+	virtual void SetPlayerHealth(const float NewHealth);
 };

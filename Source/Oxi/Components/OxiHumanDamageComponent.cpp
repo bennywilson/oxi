@@ -1,4 +1,4 @@
-// ELP 2021
+// OXI 2021
 
 #include "OxiHumanDamageComponent.h"
 #include "OxiCharacter.h"
@@ -260,41 +260,6 @@ float UOxiHumanDamageComponent::TakeDamage(const FOxiDamageInfo& DamageInfo)
 /**
  *
  */
-void UOxiPlayerDamageComponent::BeginPlay()
-{
-	Super::BeginPlay();
-
-	for (IInterface_PostProcessVolume* PPVolume : GetWorld()->PostProcessVolumes)
-	{
-		APostProcessVolume* const curVol = Cast<APostProcessVolume>(PPVolume);
-		if (curVol == nullptr)
-		{
-			continue;
-		}
-
-		FPostProcessSettings& ppSettings = curVol->Settings;
-
-		for (FWeightedBlendable& weightedBlendable : ppSettings.WeightedBlendables.Array)
-		{
-			UMaterialInstance* const MatInst = Cast<UMaterialInstance>(weightedBlendable.Object);
-			if (MatInst == nullptr)
-			{
-				continue;
-			}
-
-			if (MatInst->GetName().Contains("PlayerDamage_PP_Inst"))
-			{
-				PlayerDamagePP_MatInst = UKismetMaterialLibrary::CreateDynamicMaterialInstance(this, MatInst);
-				weightedBlendable.Object = PlayerDamagePP_MatInst;//TObjectPtr<UObject>(PlayerDamagePP_MatInst);
-				continue;
-			}
-		}
-	}
-}
-
-/**
- *
- */
 float UOxiPlayerDamageComponent::TakeDamage(const FOxiDamageInfo& DamageInfo)
 {
 	if (CVarGodMode.GetValueOnGameThread() > 0)
@@ -327,12 +292,7 @@ void UOxiPlayerDamageComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	const float ScreenBloodIntensity = FMath::Clamp((BaseHealth - CurrentHealth) / (BaseHealth * 0.9f), 0.0f, 1.0f);// * 0.5f + 0.5f;
-	if (PlayerDamagePP_MatInst != nullptr)
-	{
-		PlayerDamagePP_MatInst->SetScalarParameterValue("FXIntensity", ScreenBloodIntensity);
-	}
-
+	// Regen
 	const float curTime = GetWorld()->GetTimeSeconds();
 	if (CurrentHealth > 0 && CurrentHealth < BaseHealth && HealthRegenRate > 0.0f)
 	{

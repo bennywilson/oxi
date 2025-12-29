@@ -279,11 +279,12 @@ void AOxiFirstPersonCharacter::BeginPlay()
 	UOxiAIManager* const AIMgr = GetOxiAIManager(this);
 	AIMgr->RegisterPlayer(this);
 
+//	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDamageComponentOnTakeDamage, AActor*, damagedActor, FOxiDamageInfo, damageInfo);
+
 	UOxiDamageComponent* const DamageComp = Cast<UOxiDamageComponent>(GetComponentByClass(UOxiDamageComponent::StaticClass()));
 	if (DamageComp != nullptr)
 	{
-		//DamageComp->OnTakeDamage.Add()
-//AddUObject(this, &AOxiFirstPersonCharacter::DamageTakenCB);
+		DamageComp->OnTakeDamage.AddDynamic(this, &AOxiFirstPersonCharacter::DamageTakenCB);
 	}
 
 
@@ -454,28 +455,6 @@ void AOxiFirstPersonCharacter::MoveRight(float Value)
 	{
 		AddMovementInput(GetActorRightVector(), Value);
 	}
-}
-
-float AOxiFirstPersonCharacter::TakeDamage_Internal(const FOxiDamageInfo& DamageInfo)
-{
-	CurrentHealth -= DamageInfo.DamageAmount;
-	
-	if (CurrentHealth < 0.0f)
-	{
-		CurrentHealth = 0.0f;
-	}
-	const float t = 1.0f - ((float)CurrentHealth / BaseHealth);
-
-	FLinearColor CurBloodColor = FMath::Lerp(OxiColor, BloodColor, t);
-
-	HandsMaterial->SetVectorParameterValue("PulseColor", CurBloodColor);
-	//HandsMaterial->SetVectorParameterValue("PulseColor2", OxiColor);
-
-	for (int i = 0; i < OxiPulseLightList.Num(); i++)
-	{
-		OxiPulseLightList[i]->SetLightColor(CurBloodColor);
-	}
-	return 0.f;
 }
 
 void AOxiFirstPersonCharacter::OnDeath(class UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer)

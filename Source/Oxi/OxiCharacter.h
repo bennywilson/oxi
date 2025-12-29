@@ -297,7 +297,7 @@ public:
 	void TrySwitchWeapon();
 
 	UFUNCTION(BlueprintImplementableEvent)
-	void DamageTakenCB(UOxiDamageComponent* InDamageComponent, AActor* Victim, AActor* DamageCauser);
+	void DamageTakenCB(AActor* DamagedActor, FOxiDamageInfo DamageInfo);
 
 	UFUNCTION(BlueprintNativeEvent, Category = "Weapon")
 	void StartADS();
@@ -307,9 +307,6 @@ public:
 
 
 	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;
-
-private:
-	virtual float TakeDamage_Internal(const FOxiDamageInfo& DamageInfo);
 
 private:
 	UMaterialInstanceDynamic* HandsMaterial;

@@ -8,6 +8,9 @@
 #include "OxiCharacter.h"
 #include "OxiCheckPoint.h"
 
+/**
+ *
+ */
 void UOxiCheatManager::WarpToCheckPoint(FString CheckpointName)
 {
 	for (TActorIterator<AOxiCheckpoint> It(GetWorld()); It; ++It)
@@ -21,6 +24,24 @@ void UOxiCheatManager::WarpToCheckPoint(FString CheckpointName)
 			}
 			It->ReloadCheckpoint(PlayerChar);
 			break;
+		}
+	}
+}
+
+/**
+ *
+ */
+void UOxiCheatManager::SetPlayerHealth(const float Health)
+{
+	if (APlayerController* PC = GetOuterAPlayerController())
+	{
+		if (AOxiFirstPersonCharacter* FirstPersonCharacter = Cast<AOxiFirstPersonCharacter>(PC->GetPawn()))
+		{
+			UOxiDamageComponent* DamageComp = FirstPersonCharacter->FindComponentByClass<UOxiDamageComponent>();
+			if (DamageComp)
+			{
+				DamageComp->SetHealth(Health);
+			}
 		}
 	}
 }

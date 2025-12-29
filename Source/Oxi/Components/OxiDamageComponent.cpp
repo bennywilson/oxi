@@ -73,3 +73,13 @@ void UOxiDamageComponent::BroadcastDeath()
 //	void OnDeath() const;
 
 }
+
+/**
+ *
+ */
+void UOxiDamageComponent::SetHealth(const float Health)
+{
+	CurrentHealth = Health;
+	
+	OnHealthChange.Broadcast(GetOwner(), EHealthChangeReason::None, FOxiDamageInfo());
+}

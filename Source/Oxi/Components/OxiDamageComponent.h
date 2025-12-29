@@ -50,7 +50,18 @@ struct FOxiDamageInfo
 	float DamageZImpulse = 0.0f;
 };
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDamageComponentOnTakeDamage, AActor*, damagedActor, FOxiDamageInfo, damageInfo);
+UENUM(BlueprintType)
+enum class EHealthChangeReason : uint8
+{
+	None,
+	Damaged,
+	Healed,
+};
+
+// Deprecated
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDamageComponentOnTakeDamage, AActor*, DamagedActor, FOxiDamageInfo, DamageInfo);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FDamageComponentOnHealthChange, AActor*, DamagedActor, EHealthChangeReason, Reason, FOxiDamageInfo, DamageInfo);
 
 USTRUCT(BlueprintType)
 struct FWoundFXData
@@ -142,6 +153,9 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FDamageComponentOnTakeDamage OnTakeDamage;
 
+	UPROPERTY(BlueprintAssignable)
+	FDamageComponentOnHealthChange OnHealthChange;
+
 	// Sets default values for this component's properties
 	UOxiDamageComponent();
 
@@ -157,6 +171,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Oxi Character")
 	bool IsAlive() const { return CurrentHealth > 0; }
+
+	UFUNCTION(BlueprintCallable, Category = "Oxi Character")
+	void SetHealth(const float NewHealth);
 
 protected:
 
