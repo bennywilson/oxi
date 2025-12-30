@@ -1,4 +1,4 @@
-// ELP 2020
+// OXI 2020
 
 #pragma once
 
@@ -8,7 +8,6 @@
 #include "OxiDamageComponent.generated.h"
 
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FDamageComponentOnDeath, UOxiDamageComponent* const, class AActor* const, class AActor* const);
-
 
 UENUM(BlueprintType)
 enum EOxiDamageType
@@ -141,13 +140,15 @@ struct FOxiBloodSplatterData
 	float BloodSprayDistance = 1.0f;
 };
 
+ /**
+  *
+  */
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class OXI_API UOxiDamageComponent : public USceneComponent
 {
 	GENERATED_BODY()
 
 public:
-
 	FDamageComponentOnDeath OnDeath;
 
 	UPROPERTY(BlueprintAssignable)
@@ -176,17 +177,14 @@ public:
 	void SetHealth(const float NewHealth);
 
 protected:
-
 	virtual void BeginPlay() override;
 
 	void BroadcastDeath();
 
 protected:
-
 	TArray<USkeletalMeshComponent*>& GetSkeletalMeshes() { return SkeletalMeshes; }
 
 protected:
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
 	float BaseHealth;
 
