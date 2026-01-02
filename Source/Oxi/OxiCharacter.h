@@ -144,8 +144,7 @@ protected:
 	TArray<FOxiVOData> VOData;
 
 private:
-
-	virtual void OnDeath(class UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer);
+	virtual void OnDeath(class UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer, const EWoundLevel WoundLevel);
 };
 
 /**
@@ -183,7 +182,7 @@ protected:
 	void MoveForward(float Val);
 	void MoveRight(float Val);
 
-	virtual void OnDeath(class UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer) override;
+	virtual void OnDeath(class UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer, const EWoundLevel WoundLevel) override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh")
 	class USkeletalMeshComponent* Mesh1P;

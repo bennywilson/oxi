@@ -158,7 +158,7 @@ void AOxiCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 /**
  *
  */
-void AOxiCharacter::OnDeath(UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer)
+void AOxiCharacter::OnDeath(UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer, const EWoundLevel WoundLevel)
 {
 	OnDeath_Internal(Cast<UOxiHumanDamageComponent>(DamageComp), Victim, Killer);
 
@@ -457,7 +457,7 @@ void AOxiFirstPersonCharacter::MoveRight(float Value)
 	}
 }
 
-void AOxiFirstPersonCharacter::OnDeath(class UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer)
+void AOxiFirstPersonCharacter::OnDeath(class UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer, const EWoundLevel WoundLevel)
 {
 	//Super::OnDeath(DamageComp, Victim, Killer);
 	Super::OnDeath_Internal(DamageComp, Victim, Killer);

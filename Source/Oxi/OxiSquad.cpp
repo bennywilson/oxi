@@ -50,7 +50,7 @@ void AOxiSquad::AddSquadMember(AOxiCharacter* const SquadMemberToAdd)
 /**
  *
  */
-void AOxiSquad::SquadMemberKilledCB(UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer)
+void AOxiSquad::SquadMemberKilledCB(UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer, const EWoundLevel WoundLevel)
 {
 	check(DamageComp);
 

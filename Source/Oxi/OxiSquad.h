@@ -99,7 +99,7 @@ public:
 	bool PlaySquadMemberVO(class AOxiAICharacter* const squadMember, EOxiVOType VOType, USoundAttenuation* const soundAttenuation);
 
 private:
-	void SquadMemberKilledCB(UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer);
+	void SquadMemberKilledCB(UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer, const EWoundLevel WoundLevel);
 	void EnterAttackState();
 	void TickAttackState(const float DeltaTime);
 

@@ -103,6 +103,8 @@ float UOxiHumanDamageComponent::TakeDamage(const FOxiDamageInfo& DamageInfo)
 		}
 	}
 
+	EWoundLevel MaxWoundLevel = EWoundLevel::None;
+
 	if (bJustKilled)
 	{
 		for (int i = 0; i < SkeletalMeshes.Num(); i++)
@@ -116,7 +118,7 @@ float UOxiHumanDamageComponent::TakeDamage(const FOxiDamageInfo& DamageInfo)
 				{
 					const FWoundData& CurWoundData = WoundData[iWoundSearch];
 
-					if (!(CurWoundData.WoundLevel | DamageInfo.DamageWeapon->GetWoundLevel()))
+					if (!(CurWoundData.WoundLevel & DamageInfo.DamageWeapon->GetWoundLevel()))
 					{
 						continue;
 					}
@@ -134,6 +136,8 @@ float UOxiHumanDamageComponent::TakeDamage(const FOxiDamageInfo& DamageInfo)
 					WoundInfo.HitTime = UnpausedTimeSec;
 					WoundInstances.Add(WoundInfo);
 					bAddedWound = true;
+
+					MaxWoundLevel = (EWoundLevel)FMath::Max((uint8)MaxWoundLevel, (uint8)CurWoundData.WoundLevel);
 
 					const FWoundFXData& WoundFX = CurWoundData.WoundFX;
 					if (WoundFX.AttachSocket != NAME_None && WoundFX.DismembermentFX != nullptr)
@@ -241,13 +245,13 @@ float UOxiHumanDamageComponent::TakeDamage(const FOxiDamageInfo& DamageInfo)
 				SkelMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Ignore);
 				Victim->GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 				GetOwner()->GetWorldTimerManager().SetTimer(RagdollSleepTimerHandle, this, &UOxiDamageComponent::DisableRagdoll, 5.0f, true, 5.0f);
-			}		
+			}
 		}
 	}
 
 	if (bJustKilled)
 	{
-		OnDeath.Broadcast(this, GetOwner(), DamageInfo.DamageCauser);
+		OnDeath.Broadcast(this, GetOwner(), DamageInfo.DamageCauser, MaxWoundLevel);
 	}
 	else
 	{
@@ -276,7 +280,7 @@ float UOxiPlayerDamageComponent::TakeDamage(const FOxiDamageInfo& DamageInfo)
 
 	if (CurrentHealth <= 0.0f)
 	{
-		OnDeath.Broadcast(this, GetOwner(), DamageInfo.DamageCauser);
+		OnDeath.Broadcast(this, GetOwner(), DamageInfo.DamageCauser, EWoundLevel::None);
 	}
 
 	OnTakeDamage.Broadcast(GetOwner(), DamageInfo);

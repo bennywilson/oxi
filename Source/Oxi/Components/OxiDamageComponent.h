@@ -7,7 +7,7 @@
 #include "TimerManager.h"
 #include "OxiDamageComponent.generated.h"
 
-DECLARE_MULTICAST_DELEGATE_ThreeParams(FDamageComponentOnDeath, UOxiDamageComponent* const, class AActor* const, class AActor* const);
+DECLARE_MULTICAST_DELEGATE_FourParams(FDamageComponentOnDeath, UOxiDamageComponent* const, class AActor* const, class AActor* const, EWoundLevel MaxWoundLevel);
 
 UENUM(BlueprintType)
 enum EOxiDamageType

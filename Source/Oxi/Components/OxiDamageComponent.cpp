@@ -2,7 +2,7 @@
 
 #include "OxiDamageComponent.h"
 
-DECLARE_MULTICAST_DELEGATE_ThreeParams(FDamageComponentOnDeath, UOxiDamageComponent* const, class AActor* const, class AActor* const);
+//DECLARE_MULTICAST_DELEGATE_ThreeParams(FDamageComponentOnDeath, UOxiDamageComponent* const, class AActor* const, class AActor* const, 
 
 UOxiDamageComponent::UOxiDamageComponent()
 {
