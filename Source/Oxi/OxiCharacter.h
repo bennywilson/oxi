@@ -6,7 +6,7 @@
 #include "GameFramework/Character.h"
 #include "OxiWeapon.h"
 #include "OxiCover.h"
-#include "OxiDamageComponent.h"
+#include "Components/OxiDamageComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "OxiCharacter.generated.h"
 
@@ -144,8 +144,7 @@ protected:
 	TArray<FOxiVOData> VOData;
 
 private:
-
-	virtual void OnDeath(class UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer);
+	virtual void OnDeath(class UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer, const EWoundLevel WoundLevel);
 };
 
 /**
@@ -183,7 +182,7 @@ protected:
 	void MoveForward(float Val);
 	void MoveRight(float Val);
 
-	virtual void OnDeath(class UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer) override;
+	virtual void OnDeath(class UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer, const EWoundLevel WoundLevel) override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh")
 	class USkeletalMeshComponent* Mesh1P;
@@ -297,7 +296,7 @@ public:
 	void TrySwitchWeapon();
 
 	UFUNCTION(BlueprintImplementableEvent)
-	void DamageTakenCB(UOxiDamageComponent* InDamageComponent, AActor* Victim, AActor* DamageCauser);
+	void DamageTakenCB(AActor* DamagedActor, FOxiDamageInfo DamageInfo);
 
 	UFUNCTION(BlueprintNativeEvent, Category = "Weapon")
 	void StartADS();
@@ -307,9 +306,6 @@ public:
 
 
 	virtual void SetupPlayerInputComponent(UInputComponent* InputComponent) override;
-
-private:
-	virtual float TakeDamage_Internal(const FOxiDamageInfo& DamageInfo);
 
 private:
 	UMaterialInstanceDynamic* HandsMaterial;

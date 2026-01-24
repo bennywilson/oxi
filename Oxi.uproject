@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "5.4",
+	"EngineAssociation": "{F0054A4D-4D2F-148D-E2A8-C89D1D251C4E}",
 	"Category": "",
 	"Description": "",
 	"Modules": [
@@ -12,6 +12,10 @@
 				"Engine",
 				"PhysicsCore"
 			]
+		},
+		{
+			"Name": "OxiEditor",
+			"Type": "Editor"
 		}
 	],
 	"Plugins": [
@@ -28,15 +32,7 @@
 			"Enabled": false
 		},
 		{
-			"Name": "WmfMedia",
-			"Enabled": false
-		},
-		{
 			"Name": "MobileLauncherProfileWizard",
-			"Enabled": false
-		},
-		{
-			"Name": "WindowsMoviePlayer",
 			"Enabled": false
 		},
 		{
@@ -412,6 +408,18 @@
 		{
 			"Name": "N10XSourceCodeAccess",
 			"Enabled": false
+		},
+		{
+			"Name": "RenderDocPlugin",
+			"Enabled": false
+		},
+		{
+			"Name": "MfMedia",
+			"Enabled": true
+		},
+		{
+			"Name": "MediaFrameworkUtilities",
+			"Enabled": true
 		}
 	]
 }

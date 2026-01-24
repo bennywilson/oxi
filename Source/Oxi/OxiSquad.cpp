@@ -3,7 +3,7 @@
 #include "OxiSquad.h"
 #include "Kismet/GameplayStatics.h"
 #include "OxiAIManager.h"
-#include "OxiHumanDamageComponent.h"
+#include "Components/OxiHumanDamageComponent.h"
 #include "AIController.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "DrawDebugHelpers.h"
@@ -50,7 +50,7 @@ void AOxiSquad::AddSquadMember(AOxiCharacter* const SquadMemberToAdd)
 /**
  *
  */
-void AOxiSquad::SquadMemberKilledCB(UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer)
+void AOxiSquad::SquadMemberKilledCB(UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer, const EWoundLevel WoundLevel)
 {
 	check(DamageComp);
 

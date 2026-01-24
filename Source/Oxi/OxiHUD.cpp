@@ -12,10 +12,7 @@ AOxiHUD::AOxiHUD()
 
 }
 
-
 void AOxiHUD::DrawHUD()
 {
 	Super::DrawHUD();
-
-	// Draw very simple crosshair
 }

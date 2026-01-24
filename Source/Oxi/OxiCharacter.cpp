@@ -16,7 +16,7 @@
 #include "OxiAIManager.h"
 #include "OxiCheatManager.h"
 #include "OxiGameMode.h"
-#include "OxiHumanDamageComponent.h"
+#include "Components/OxiHumanDamageComponent.h"
 #include "OxiWeapon.h"
 #include <KismetTraceUtils.h>
 
@@ -158,7 +158,7 @@ void AOxiCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 /**
  *
  */
-void AOxiCharacter::OnDeath(UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer)
+void AOxiCharacter::OnDeath(UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer, const EWoundLevel WoundLevel)
 {
 	OnDeath_Internal(Cast<UOxiHumanDamageComponent>(DamageComp), Victim, Killer);
 
@@ -260,9 +260,7 @@ void AOxiFirstPersonCharacter::BeginPlay()
 	//Attach gun mesh component to Skeleton, doing it here because the skeleton is not yet created in the constructor
 	FName PlayerSocketToAttachTo = "RightHandAttachSocket";
 
-	EquippedItem = GWorld->SpawnActor<AOxiWeapon>(DefaultWeapon, FVector::ZeroVector, FRotator::ZeroRotator);
-	EquippedItem->AttachToComponent(Mesh1P, FAttachmentTransformRules::SnapToTargetNotIncludingScale, PlayerSocketToAttachTo);
-	EquippedItem->SetActorRelativeScale3D(FVector(1.0f, 1.0f, 1.0f));
+//	TrySwitchWeapon();
 	Mesh1P->SetHiddenInGame(false, true);
 
 	HandsMaterial = Mesh1P->CreateDynamicMaterialInstance(0);
@@ -281,11 +279,12 @@ void AOxiFirstPersonCharacter::BeginPlay()
 	UOxiAIManager* const AIMgr = GetOxiAIManager(this);
 	AIMgr->RegisterPlayer(this);
 
+//	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FDamageComponentOnTakeDamage, AActor*, damagedActor, FOxiDamageInfo, damageInfo);
+
 	UOxiDamageComponent* const DamageComp = Cast<UOxiDamageComponent>(GetComponentByClass(UOxiDamageComponent::StaticClass()));
 	if (DamageComp != nullptr)
 	{
-		//DamageComp->OnTakeDamage.Add()
-//AddUObject(this, &AOxiFirstPersonCharacter::DamageTakenCB);
+		DamageComp->OnTakeDamage.AddDynamic(this, &AOxiFirstPersonCharacter::DamageTakenCB);
 	}
 
 
@@ -373,7 +372,7 @@ void AOxiFirstPersonCharacter::TickActor(float DeltaTime, enum ELevelTick TickTy
 
 void AOxiFirstPersonCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
 {
-	// Set up action bindings
+	// Set up action bindingsequipped
 	if (UEnhancedInputComponent* const EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
 		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AOxiFirstPersonCharacter::Move);
@@ -384,7 +383,7 @@ void AOxiFirstPersonCharacter::SetupPlayerInputComponent(class UInputComponent* 
 		EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Completed, this, &AOxiFirstPersonCharacter::OnStopFire);
 		EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Triggered, this, &AOxiFirstPersonCharacter::TryReload);
 		EnhancedInputComponent->BindAction(SwapWeaponAction, ETriggerEvent::Triggered, this, &AOxiFirstPersonCharacter::TrySwitchWeapon);
-		EnhancedInputComponent->BindAction(AimDownSightsAction, ETriggerEvent::Started, this, &AOxiFirstPersonCharacter::StartADS);
+		EnhancedInputComponent->BindAction(AimDownSightsAction, ETriggerEvent::Ongoing, this, &AOxiFirstPersonCharacter::StartADS);
 		EnhancedInputComponent->BindAction(AimDownSightsAction, ETriggerEvent::Completed, this, &AOxiFirstPersonCharacter::EndADS);
 	}
 	else
@@ -458,29 +457,7 @@ void AOxiFirstPersonCharacter::MoveRight(float Value)
 	}
 }
 
-float AOxiFirstPersonCharacter::TakeDamage_Internal(const FOxiDamageInfo& DamageInfo)
-{
-	CurrentHealth -= DamageInfo.DamageAmount;
-	
-	if (CurrentHealth < 0.0f)
-	{
-		CurrentHealth = 0.0f;
-	}
-	const float t = 1.0f - ((float)CurrentHealth / BaseHealth);
-
-	FLinearColor CurBloodColor = FMath::Lerp(OxiColor, BloodColor, t);
-
-	HandsMaterial->SetVectorParameterValue("PulseColor", CurBloodColor);
-	//HandsMaterial->SetVectorParameterValue("PulseColor2", OxiColor);
-
-	for (int i = 0; i < OxiPulseLightList.Num(); i++)
-	{
-		OxiPulseLightList[i]->SetLightColor(CurBloodColor);
-	}
-	return 0.f;
-}
-
-void AOxiFirstPersonCharacter::OnDeath(class UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer)
+void AOxiFirstPersonCharacter::OnDeath(class UOxiDamageComponent* const DamageComp, AActor* const Victim, AActor* const Killer, const EWoundLevel WoundLevel)
 {
 	//Super::OnDeath(DamageComp, Victim, Killer);
 	Super::OnDeath_Internal(DamageComp, Victim, Killer);
@@ -594,6 +571,11 @@ void AOxiFirstPersonCharacter::StartADS_Implementation()
 
 void AOxiFirstPersonCharacter::EndADS_Implementation()
 {
+	if (!AimingDownSights)
+	{
+		return;
+	}
+
 	AimingDownSights = false;
 	AimingDownSightsEndTime = this->GetWorld()->GetUnpausedTimeSeconds();
 	AimingDownSightsElapsedTime = 0;

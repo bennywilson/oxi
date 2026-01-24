@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
+#include "Components/OxiDamageComponent.h"
 #include "OxiWeapon.generated.h"
 
 /**
@@ -34,6 +35,9 @@ public:
 	UFUNCTION(BlueprintCallable)
 	FName GetBodyName(const UStaticMeshComponent* const StaticMeshComp, const int ElementIndex);
 
+	UFUNCTION(BlueprintCallable)
+	EWoundLevel GetWoundLevel() const { return (EWoundLevel)WoundLevel; }
+
 protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
@@ -47,4 +51,7 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
 	float WeaponDamage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Bitmask, BitmaskEnum = "/Script/Oxi.EWoundLevel"))
+	int32 WoundLevel;
 };

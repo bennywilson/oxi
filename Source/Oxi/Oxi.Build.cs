@@ -7,8 +7,24 @@ public class Oxi : ModuleRules
 	public Oxi(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-	
-        PublicDependencyModuleNames.AddRange(new string[] { "AIModule", "Core", "CoreUObject", "Engine", "EnhancedInput", "PhysicsCore", "InputCore", "HeadMountedDisplay" });
+
+		PublicIncludePaths.AddRange(new string[] {
+			"Oxi"
+		});
+
+		PublicDependencyModuleNames.AddRange(
+			new string[] {
+				"AIModule",
+				"Core",
+				"CoreUObject",
+				"Engine",
+				"EnhancedInput",
+				"PhysicsCore",
+				"InputCore",
+				"HeadMountedDisplay",
+				"UMG"
+			}
+		);
 
         if (Target.bBuildEditor)
         {

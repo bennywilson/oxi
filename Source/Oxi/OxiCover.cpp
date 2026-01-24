@@ -1,7 +1,7 @@
 // ELP 2022
 
 #include "OxiCover.h"
-#include "OxiDestructibleComponent.h"
+#include "Components/OxiDestructibleComponent.h"
 #include "OxiAIManager.h"
 
 

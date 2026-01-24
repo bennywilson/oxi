@@ -4,21 +4,33 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
+#include "Blueprint/UserWidget.h"
 #include "OxiHUD.generated.h"
 
+/**
+ *
+ */
 UCLASS()
 class AOxiHUD : public AHUD
 {
 	GENERATED_BODY()
 
 public:
-
 	AOxiHUD();
 
-	/** Primary draw call for the HUD */
 	virtual void DrawHUD() override;
-
-private:
 
 };
 
+/**
+ *
+ */
+UCLASS()
+class UOxiCrosshairsWidget : public UUserWidget
+{
+	GENERATED_BODY()
+
+public:
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+	void UpdateSpread(const float Spread);
+};
