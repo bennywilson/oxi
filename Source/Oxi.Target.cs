@@ -10,6 +10,6 @@ public class OxiTarget : TargetRules
 		Type = TargetType.Game;
 		DefaultBuildSettings = BuildSettingsVersion.V6;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_7;
-		ExtraModuleNames.Add("Oxi");
+		ExtraModuleNames.AddRange(new string[] { "Oxi", "OxiRendering" });
 	}
 }

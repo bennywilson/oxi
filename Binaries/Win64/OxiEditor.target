@@ -20,7 +20,7 @@
 		"IsLicenseeVersion": 0,
 		"IsPromotedBuild": 0,
 		"BranchName": "UE5",
-		"BuildId": "8a39cb67-72e8-4499-8a0e-1b6e98fce670"
+		"BuildId": "29da480e-8e6e-4817-8069-db7f820f9dbb"
 	},
 	"BuildProducts": [
 		{
@@ -6469,6 +6469,14 @@
 		},
 		{
 			"Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-OxiEditor.pdb",
+			"Type": "SymbolFile"
+		},
+		{
+			"Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-OxiRendering.dll",
+			"Type": "DynamicLibrary"
+		},
+		{
+			"Path": "$(ProjectDir)/Binaries/Win64/UnrealEditor-OxiRendering.pdb",
 			"Type": "SymbolFile"
 		},
 		{

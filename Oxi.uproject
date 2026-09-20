@@ -14,6 +14,11 @@
 			]
 		},
 		{
+			"Name": "OxiRendering",
+			"Type": "Runtime",
+			"LoadingPhase": "PostConfigInit"
+		},
+		{
 			"Name": "OxiEditor",
 			"Type": "Editor"
 		}

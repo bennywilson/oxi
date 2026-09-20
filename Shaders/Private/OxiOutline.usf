@@ -1,0 +1,225 @@
+// OXI 2026
+// Post-process outlines. Outlined meshes render custom depth and write a custom stencil value that indexes the style palette.
+
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/SceneTexturesCommon.ush"
+#include "/Engine/Private/DeferredShadingCommon.ush"
+
+#ifndef OUTLINE_16_DIRECTIONS
+#define OUTLINE_16_DIRECTIONS 0
+#endif
+
+// Mirrors FOxiOutlineStyleGPU.
+struct FOxiOutlineStyle
+{
+	float4 ColorDim;		// rgb line color, a dim amount
+	float4 EmissiveFloor;	// rgb emissive, a minimum brightness when dimmed
+	float4 Width;			// x width (px @ reference height), y width at far distance, z interior line scale, w opacity
+	uint4 Flags;			// x flags
+};
+
+#define OUTLINE_FLAG_ENABLED		1
+#define OUTLINE_FLAG_THROUGH_WALLS	2
+#define OUTLINE_FLAG_INTERIOR		4
+
+Texture2D InputSceneColor;
+StructuredBuffer<FOxiOutlineStyle> Styles;
+int4 ViewRect;				// min.xy, max.xy (exclusive), in scene texture pixels
+float2 DistanceFalloff;		// near depth, 1 / (far - near)
+float2 SelfOverlap;			// depth gap: constant, per depth per pixel of distance
+float2 OcclusionBias;		// visibility slack: constant, per depth
+float WidthScale;			// view height / reference height
+float MaxWidth;				// cap on authored width (px @ reference height)
+float SearchRadius;			// px, largest distance at which any line can cover a pixel
+
+Texture2D OutlineTexture;
+
+// Integer steps so every sample lands on a pixel center. Diagonals/knight moves step further per iteration.
+#if OUTLINE_16_DIRECTIONS
+#define NUM_DIRECTIONS 16
+static const int2 Directions[NUM_DIRECTIONS] =
+{
+	int2( 1, 0), int2( 2, 1), int2( 1, 1), int2( 1, 2),
+	int2( 0, 1), int2(-1, 2), int2(-1, 1), int2(-2, 1),
+	int2(-1, 0), int2(-2,-1), int2(-1,-1), int2(-1,-2),
+	int2( 0,-1), int2( 1,-2), int2( 1,-1), int2( 2,-1),
+};
+#else
+#define NUM_DIRECTIONS 8
+static const int2 Directions[NUM_DIRECTIONS] =
+{
+	int2( 1, 0), int2( 1, 1), int2( 0, 1), int2(-1, 1),
+	int2(-1, 0), int2(-1,-1), int2( 0,-1), int2( 1,-1),
+};
+#endif
+
+struct FOutlineSample
+{
+	uint Stencil;
+	float CustomDepth;
+	float SceneDepth;
+};
+
+uint LoadStencil(int2 PixelPos)
+{
+	return SceneTexturesStruct.CustomStencilTexture.Load(int3(PixelPos, 0)) STENCIL_COMPONENT_SWIZZLE;
+}
+
+FOutlineSample LoadDepths(int2 PixelPos, uint Stencil)
+{
+	FOutlineSample Sample;
+	Sample.Stencil = Stencil;
+	Sample.CustomDepth = ConvertFromDeviceZ(SceneTexturesStruct.CustomDepthTexture.Load(int3(PixelPos, 0)).r);
+	Sample.SceneDepth = ConvertFromDeviceZ(SceneTexturesStruct.SceneDepthTexture.Load(int3(PixelPos, 0)).r);
+	return Sample;
+}
+
+bool IsStyleEnabled(uint Stencil)
+{
+	return Stencil != 0 && (Styles[Stencil].Flags.x & OUTLINE_FLAG_ENABLED) != 0;
+}
+
+float GetBias(float Depth)
+{
+	return OcclusionBias.x + OcclusionBias.y * Depth;
+}
+
+// True when the outlined surface in custom depth is what the camera actually sees at this pixel.
+bool IsCustomDepthVisible(FOutlineSample Sample)
+{
+	return Sample.CustomDepth <= Sample.SceneDepth + GetBias(Sample.CustomDepth);
+}
+
+float GetLineWidth(FOxiOutlineStyle Style, float Depth)
+{
+	const float T = smoothstep(0.0, 1.0, saturate((Depth - DistanceFalloff.x) * DistanceFalloff.y));
+	return min(lerp(Style.Width.x, Style.Width.y, T), MaxWidth) * WidthScale;
+}
+
+void OutlinePS(float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0)
+{
+	const int2 PixelPos = int2(SvPosition.xy);
+	const FOutlineSample Center = LoadDepths(PixelPos, LoadStencil(PixelPos));
+
+	const uint CenterStencil = IsStyleEnabled(Center.Stencil) ? Center.Stencil : 0;
+	const bool bCenterVisible = CenterStencil != 0 && IsCustomDepthVisible(Center);
+
+	float BestCoverage = 0.0;
+	float BestDepth = 0.0;
+	uint BestStencil = 0;
+	int2 BestPos = PixelPos;
+
+	UNROLL
+	for (uint DirIndex = 0; DirIndex < NUM_DIRECTIONS; ++DirIndex)
+	{
+		const int2 Step = Directions[DirIndex];
+		const float StepLength = length(float2(Step));
+
+		LOOP
+		for (float Distance = StepLength, StepCount = 1.0; Distance < SearchRadius; Distance += StepLength, StepCount += 1.0)
+		{
+			const int2 SamplePos = clamp(PixelPos + Step * int(StepCount), ViewRect.xy, ViewRect.zw - 1);
+			const uint Stencil = LoadStencil(SamplePos);
+			if (!IsStyleEnabled(Stencil))
+			{
+				continue;
+			}
+
+			const FOxiOutlineStyle Style = Styles[Stencil];
+			const FOutlineSample Sample = LoadDepths(SamplePos, Stencil);
+			const bool bThroughWalls = (Style.Flags.x & OUTLINE_FLAG_THROUGH_WALLS) != 0;
+
+			if (!bThroughWalls && !IsCustomDepthVisible(Sample))
+			{
+				// This part of the object is hidden; a farther sample in this direction may still be visible.
+				continue;
+			}
+
+			bool bInterior = false;
+			if (bCenterVisible || (bThroughWalls && CenterStencil != 0))
+			{
+				// Both pixels are outlined surfaces (for through-walls styles, possibly hidden ones), so compare custom depths.
+				// The nearer one draws its line over the farther one. Where two styles touch at similar depth,
+				// the higher stencil value owns the line so only one side draws it.
+				const float DepthGap = Center.CustomDepth - Sample.CustomDepth;
+				const float Threshold = SelfOverlap.x + SelfOverlap.y * Sample.CustomDepth * Distance;
+				const bool bSameStyle = Stencil == CenterStencil;
+				if (DepthGap > Threshold)
+				{
+					// Self-overlap (arm over torso) is an interior line; a different style in front is a silhouette.
+					bInterior = bSameStyle;
+				}
+				else if (!bSameStyle && abs(DepthGap) <= Threshold && Stencil > CenterStencil)
+				{
+					bInterior = true;
+				}
+				else
+				{
+					continue;
+				}
+
+				if (bInterior && (Style.Flags.x & OUTLINE_FLAG_INTERIOR) == 0)
+				{
+					continue;
+				}
+			}
+			else if (!bThroughWalls && Center.SceneDepth < Sample.CustomDepth - GetBias(Sample.CustomDepth))
+			{
+				// Silhouette over something un-outlined that is in front of the object, so it hides the line.
+				break;
+			}
+
+			float Width = GetLineWidth(Style, Sample.CustomDepth);
+			if (bInterior)
+			{
+				Width *= Style.Width.z;
+			}
+
+			// The object's edge sits half a pixel from the sample center, so this pixel is (Distance - 0.5) px outside it.
+			// Coverage ramps over one pixel for an anti-aliased line edge.
+			const float Coverage = saturate(Width - Distance + 1.0);
+			if (Coverage > BestCoverage || (Coverage == BestCoverage && Coverage > 0.0 && Sample.CustomDepth < BestDepth))
+			{
+				BestCoverage = Coverage;
+				BestDepth = Sample.CustomDepth;
+				BestStencil = Stencil;
+				BestPos = SamplePos;
+			}
+
+			// Nearest outlined sample in this direction decides; anything beyond it is behind its silhouette.
+			break;
+		}
+	}
+
+	if (BestCoverage <= 0.0)
+	{
+		OutColor = 0;
+		return;
+	}
+
+	const FOxiOutlineStyle Style = Styles[BestStencil];
+
+	// Dim by how lit the outlined object is right next to the line: displayed scene color relative to its albedo.
+	float3 LineColor = Style.ColorDim.rgb;
+	if (Style.ColorDim.a > 0.0)
+	{
+		const float2 BufferUV = (float2(BestPos) + 0.5) * View.BufferSizeAndInvSize.zw;
+		const float BaseLuminance = Luminance(GetGBufferData(BufferUV).BaseColor);
+		const float SceneLuminance = Luminance(InputSceneColor.Load(int3(BestPos, 0)).rgb);
+
+		// Near-black albedo gives no usable lighting estimate; leave the line undimmed.
+		const float Lighting = BaseLuminance > 0.02 ? saturate(SceneLuminance / BaseLuminance) : 1.0;
+		LineColor *= lerp(1.0, max(Lighting, Style.EmissiveFloor.a), Style.ColorDim.a);
+	}
+
+	// Same units as material emissive, so values/bloom behave like an emissive material would.
+	const float3 Emissive = Style.EmissiveFloor.rgb * View.PreExposure;
+	const float Opacity = Style.Width.w;
+
+	OutColor = float4(BestCoverage * (LineColor * Opacity + Emissive), BestCoverage * Opacity);
+}
+
+void CompositePS(float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0)
+{
+	OutColor = OutlineTexture.Load(int3(SvPosition.xy, 0));
+}
