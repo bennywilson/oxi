@@ -9,6 +9,13 @@
 #define OUTLINE_16_DIRECTIONS 0
 #endif
 
+#ifndef OUTLINE_SMEAR
+#define OUTLINE_SMEAR 0
+#endif
+
+// Taps along the tail when looking for the object that cast it.
+#define OUTLINE_SMEAR_TAPS 12
+
 // Mirrors FOxiOutlineStyleGPU.
 struct FOxiOutlineStyle
 {
@@ -34,6 +41,17 @@ float FocusAmount;			// 0 = styles keep their own color, 1 = fully focused
 float WidthScale;			// view height / reference height
 float MaxWidth;				// cap on authored width (px @ reference height)
 float SearchRadius;			// px, largest distance at which any line can cover a pixel
+
+// One dash trail. The gameplay side starts these; the renderer projects the dash into screen space per view.
+struct FOxiSmearInstance
+{
+	float4 DirLength;	// xy unit direction from where the dash started toward the object, z trail length (px), w strength
+	float4 Params;		// x falloff, y opacity, zw unused
+	uint4 Stencil;		// x stencil value this trail belongs to
+};
+
+StructuredBuffer<FOxiSmearInstance> Smears;
+int NumSmears;
 
 Texture2D OutlineTexture;
 
@@ -98,6 +116,88 @@ float GetLineWidth(FOxiOutlineStyle Style, float Depth)
 	const float T = smoothstep(0.0, 1.0, saturate((Depth - DistanceFalloff.x) * DistanceFalloff.y));
 	return min(lerp(Style.Width.x, Style.Width.y, T), MaxWidth) * WidthScale;
 }
+
+// Ink for a style: the aim-focus tint, then dimming by the lighting on the object being outlined.
+// SourcePos is a pixel on that object, which is where the lighting is read from.
+void GetStyleInk(FOxiOutlineStyle Style, int2 SourcePos, out float3 OutInk, out float3 OutEmissive)
+{
+	const float Focus = saturate(FocusAmount * Style.Misc.x);
+	OutInk = lerp(Style.ColorDim.rgb, FocusColor.rgb, Focus);
+
+	// Dim by how lit the object is right there: displayed scene color relative to its albedo.
+	if (Style.ColorDim.a > 0.0)
+	{
+		const float2 BufferUV = (float2(SourcePos) + 0.5) * View.BufferSizeAndInvSize.zw;
+		const float BaseLuminance = Luminance(GetGBufferData(BufferUV).BaseColor);
+		const float SceneLuminance = Luminance(InputSceneColor.Load(int3(SourcePos, 0)).rgb);
+
+		// Near-black albedo gives no usable lighting estimate; leave the ink undimmed.
+		const float Lighting = BaseLuminance > 0.02 ? saturate(SceneLuminance / BaseLuminance) : 1.0;
+		OutInk *= lerp(1.0, max(Lighting, Style.EmissiveFloor.a), Style.ColorDim.a);
+	}
+
+	// Same units as material emissive, so values/bloom behave like an emissive material would.
+	// The focus color can add its own glow, so a highlight can ramp up as the player aims.
+	OutEmissive = (Style.EmissiveFloor.rgb + FocusColor.rgb * FocusColor.a * Focus) * View.PreExposure;
+}
+
+#if OUTLINE_SMEAR
+// Ink trailing a dash, the way stretching an inverted hull used to look. The dash is a teleport, so there is no
+// motion to read: gameplay hands us where it started, and each trail marches from this pixel toward the object
+// that left it, laying down ink that fades with distance from the object.
+float4 ComputeSmear(int2 PixelPos, FOutlineSample Center, uint CenterStencil, bool bCenterVisible)
+{
+	float4 Result = 0;
+
+	LOOP
+	for (int Index = 0; Index < NumSmears; ++Index)
+	{
+		const FOxiSmearInstance Smear = Smears[Index];
+		const uint Stencil = Smear.Stencil.x;
+		const float TrailLength = Smear.DirLength.z;
+
+		// The object covers this pixel itself, so it is drawn normally rather than smeared.
+		if (bCenterVisible && CenterStencil == Stencil)
+		{
+			continue;
+		}
+
+		LOOP
+		for (int Tap = 1; Tap <= OUTLINE_SMEAR_TAPS; ++Tap)
+		{
+			const float TapDistance = TrailLength * (float(Tap) / float(OUTLINE_SMEAR_TAPS));
+			const int2 SamplePos = clamp(PixelPos + int2(round(Smear.DirLength.xy * TapDistance)), ViewRect.xy, ViewRect.zw - 1);
+
+			if (LoadStencil(SamplePos) != Stencil)
+			{
+				continue;
+			}
+
+			const FOutlineSample Sample = LoadDepths(SamplePos, Stencil);
+			if (!IsCustomDepthVisible(Sample))
+			{
+				continue;
+			}
+
+			// Something in front of the object hides its trail here.
+			if (Center.SceneDepth < Sample.CustomDepth - GetBias(Sample.CustomDepth))
+			{
+				break;
+			}
+
+			float3 Ink, Emissive;
+			GetStyleInk(Styles[Stencil], SamplePos, Ink, Emissive);
+
+			const float Fade = pow(saturate(1.0 - TapDistance / TrailLength), Smear.Params.x) * Smear.Params.y * Smear.DirLength.w;
+			const float4 Tail = float4(Fade * (Ink + Emissive), Fade);
+			Result = Tail.a > Result.a ? Tail : Result;
+			break;
+		}
+	}
+
+	return Result;
+}
+#endif
 
 void OutlinePS(float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0)
 {
@@ -194,36 +294,26 @@ void OutlinePS(float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0
 		}
 	}
 
-	if (BestCoverage <= 0.0)
+	float4 Line = 0;
+	if (BestCoverage > 0.0)
 	{
-		OutColor = 0;
-		return;
+		const FOxiOutlineStyle Style = Styles[BestStencil];
+		const float Opacity = Style.Width.w;
+
+		float3 Ink, Emissive;
+		GetStyleInk(Style, BestPos, Ink, Emissive);
+
+		Line = float4(BestCoverage * (Ink * Opacity + Emissive), BestCoverage * Opacity);
 	}
 
-	const FOxiOutlineStyle Style = Styles[BestStencil];
+#if OUTLINE_SMEAR
+	const float4 Tail = ComputeSmear(PixelPos, Center, CenterStencil, bCenterVisible);
+#else
+	const float4 Tail = 0;
+#endif
 
-	// Styles that opt in tint toward the global focus color (per-weapon aim highlight).
-	const float Focus = saturate(FocusAmount * Style.Misc.x);
-	float3 LineColor = lerp(Style.ColorDim.rgb, FocusColor.rgb, Focus);
-
-	// Dim by how lit the outlined object is right next to the line: displayed scene color relative to its albedo.
-	if (Style.ColorDim.a > 0.0)
-	{
-		const float2 BufferUV = (float2(BestPos) + 0.5) * View.BufferSizeAndInvSize.zw;
-		const float BaseLuminance = Luminance(GetGBufferData(BufferUV).BaseColor);
-		const float SceneLuminance = Luminance(InputSceneColor.Load(int3(BestPos, 0)).rgb);
-
-		// Near-black albedo gives no usable lighting estimate; leave the line undimmed.
-		const float Lighting = BaseLuminance > 0.02 ? saturate(SceneLuminance / BaseLuminance) : 1.0;
-		LineColor *= lerp(1.0, max(Lighting, Style.EmissiveFloor.a), Style.ColorDim.a);
-	}
-
-	// Same units as material emissive, so values/bloom behave like an emissive material would.
-	// The focus color can add its own glow, so a highlight can ramp up as the player aims.
-	const float3 Emissive = (Style.EmissiveFloor.rgb + FocusColor.rgb * FocusColor.a * Focus) * View.PreExposure;
-	const float Opacity = Style.Width.w;
-
-	OutColor = float4(BestCoverage * (LineColor * Opacity + Emissive), BestCoverage * Opacity);
+	// Lines sit on top of the tail; both are premultiplied.
+	OutColor = float4(Line.rgb + Tail.rgb * (1.0 - Line.a), Line.a + Tail.a * (1.0 - Line.a));
 }
 
 void CompositePS(float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0)

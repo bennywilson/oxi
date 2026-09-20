@@ -65,6 +65,21 @@ struct FOxiOutlineStyle
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Width", meta = (ClampMin = 0, ClampMax = 1, EditCondition = "bInteriorLines"))
 	float InteriorWidthScale = 0.6f;
 
+	/**
+	 * Longest dash trail this style draws, in pixels at 1080p. A trail normally spans the whole dash;
+	 * this caps it so a long teleport doesn't paint ink across the screen. See StartOutlineSmear.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Smear", meta = (ClampMin = 0, ClampMax = 512))
+	float SmearMaxLength = 160.f;
+
+	/** How fast the ink fades along the trail, away from the object. 1 = linear, higher = fades out sooner. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Smear", meta = (ClampMin = 0.1, ClampMax = 8))
+	float SmearFalloff = 1.5f;
+
+	/** Ink opacity where the trail meets the object. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Smear", meta = (ClampMin = 0, ClampMax = 1))
+	float SmearOpacity = 1.f;
+
 	/** Draw the silhouette even where the object is hidden behind other geometry. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Visibility")
 	bool bShowThroughWalls = false;

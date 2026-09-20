@@ -27,6 +27,39 @@ static TAutoConsoleVariable<int32> CVarOxiOutlinesDirections(
 
 DECLARE_GPU_STAT_NAMED(OxiOutlines, TEXT("Oxi Outlines"));
 
+// Mirrors FOxiSmearInstance in OxiOutline.usf.
+struct FOxiSmearInstanceGPU
+{
+	FVector4f DirLength = FVector4f::Zero();
+	FVector4f Params = FVector4f::Zero();
+	FUintVector4 Stencil = FUintVector4(0, 0, 0, 0);
+};
+
+// These are read as structured buffers, so a field added on one side and not the other shifts every element
+// and quietly corrupts the whole palette. Update the matching struct in OxiOutline.usf when these change.
+static_assert(sizeof(FOxiOutlineStyleGPU) == 5 * sizeof(FVector4f), "FOxiOutlineStyleGPU must match FOxiOutlineStyle in OxiOutline.usf");
+static_assert(sizeof(FOxiSmearInstanceGPU) == 3 * sizeof(FVector4f), "FOxiSmearInstanceGPU must match FOxiSmearInstance in OxiOutline.usf");
+
+// World position to pixels in this view's render-resolution rect. False when it is behind the camera.
+static bool ProjectToViewPixels(const FSceneView& View, const FIntRect& ViewRect, const FVector& WorldPosition, FVector2f& OutPixel)
+{
+	const FVector4 ScreenPosition = View.WorldToScreen(WorldPosition);
+	FVector2D PixelPosition;
+	if (ScreenPosition.W <= 0.0 || !View.ScreenToPixel(ScreenPosition, PixelPosition))
+	{
+		return false;
+	}
+
+	// ScreenToPixel works in unscaled viewport pixels, but the pass runs at render resolution.
+	const FIntRect Unscaled = View.UnscaledViewRect;
+	const FVector2f Scale(
+		ViewRect.Width() / static_cast<float>(FMath::Max(Unscaled.Width(), 1)),
+		ViewRect.Height() / static_cast<float>(FMath::Max(Unscaled.Height(), 1)));
+
+	OutPixel = (FVector2f(PixelPosition) - FVector2f(Unscaled.Min.X, Unscaled.Min.Y)) * Scale + FVector2f(ViewRect.Min.X, ViewRect.Min.Y);
+	return true;
+}
+
 class FOxiOutlinePS : public FGlobalShader
 {
 public:
@@ -34,7 +67,8 @@ public:
 	SHADER_USE_PARAMETER_STRUCT(FOxiOutlinePS, FGlobalShader);
 
 	class FSixteenDirections : SHADER_PERMUTATION_BOOL("OUTLINE_16_DIRECTIONS");
-	using FPermutationDomain = TShaderPermutationDomain<FSixteenDirections>;
+	class FSmear : SHADER_PERMUTATION_BOOL("OUTLINE_SMEAR");
+	using FPermutationDomain = TShaderPermutationDomain<FSixteenDirections, FSmear>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
@@ -50,6 +84,8 @@ public:
 		SHADER_PARAMETER(float, WidthScale)
 		SHADER_PARAMETER(float, MaxWidth)
 		SHADER_PARAMETER(float, SearchRadius)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FOxiSmearInstance>, Smears)
+		SHADER_PARAMETER(int32, NumSmears)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -132,6 +168,17 @@ void FOxiOutlineSceneViewExtension::SetFocus_GameThread(const FLinearColor& InCo
 		});
 }
 
+void FOxiOutlineSceneViewExtension::SetSmears_GameThread(TArray<FOxiOutlineSmear> InSmears)
+{
+	check(IsInGameThread());
+
+	ENQUEUE_RENDER_COMMAND(OxiSetOutlineSmears)(
+		[this, KeepAlive = AsShared(), Smears = MoveTemp(InSmears)](FRHICommandListImmediate&) mutable
+		{
+			Smears_RenderThread = MoveTemp(Smears);
+		});
+}
+
 bool FOxiOutlineSceneViewExtension::IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const
 {
 	return bHasStyles && CVarOxiOutlines.GetValueOnGameThread() != 0;
@@ -173,10 +220,42 @@ void FOxiOutlineSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder&
 
 	FRDGBufferRef StyleBuffer = CreateStructuredBuffer(GraphBuilder, TEXT("OxiOutline.Styles"), Styles_RenderThread);
 
+	// Project each dash trail into this view: the object is at End now, so the trail runs back toward Start.
+	TArray<FOxiSmearInstanceGPU, SceneRenderingAllocator> SmearInstances;
+	SmearInstances.Reserve(Smears_RenderThread.Num());
+
+	for (const FOxiOutlineSmear& Smear : Smears_RenderThread)
+	{
+		FVector2f StartPixel, EndPixel;
+		if (Smear.Strength <= 0.f
+			|| !ProjectToViewPixels(View, ViewRect, Smear.Start, StartPixel)
+			|| !ProjectToViewPixels(View, ViewRect, Smear.End, EndPixel))
+		{
+			continue;
+		}
+
+		const FVector2f Trail = EndPixel - StartPixel;
+		const float TrailLength = FMath::Min(Trail.Size(), Smear.MaxLength * WidthScale);
+		if (TrailLength < 1.f)
+		{
+			continue;
+		}
+
+		FOxiSmearInstanceGPU& Instance = SmearInstances.AddDefaulted_GetRef();
+		const FVector2f Direction = Trail.GetSafeNormal();
+		Instance.DirLength = FVector4f(Direction.X, Direction.Y, TrailLength, FMath::Clamp(Smear.Strength, 0.f, 1.f));
+		Instance.Params = FVector4f(FMath::Max(Smear.Falloff, 0.01f), FMath::Clamp(Smear.Opacity, 0.f, 1.f), 0.f, 0.f);
+		Instance.Stencil = FUintVector4(Smear.Stencil, 0, 0, 0);
+	}
+
+	const bool bSmear = !SmearInstances.IsEmpty();
+	FRDGBufferRef SmearBuffer = CreateStructuredBuffer(GraphBuilder, TEXT("OxiOutline.Smears"), SmearInstances);
+
 	// Detect lines. Written to a separate target because the pass reads scene color around each pixel.
 	{
 		FOxiOutlinePS::FPermutationDomain Permutation;
 		Permutation.Set<FOxiOutlinePS::FSixteenDirections>(CVarOxiOutlinesDirections.GetValueOnRenderThread() >= 16);
+		Permutation.Set<FOxiOutlinePS::FSmear>(bSmear);
 		TShaderMapRef<FOxiOutlinePS> PixelShader(ShaderMap, Permutation);
 
 		FOxiOutlinePS::FParameters* Parameters = GraphBuilder.AllocParameters<FOxiOutlinePS::FParameters>();
@@ -193,6 +272,8 @@ void FOxiOutlineSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder&
 		Parameters->WidthScale = WidthScale;
 		Parameters->MaxWidth = MaxWidth;
 		Parameters->SearchRadius = SearchRadius;
+		Parameters->Smears = GraphBuilder.CreateSRV(SmearBuffer);
+		Parameters->NumSmears = SmearInstances.Num();
 		Parameters->RenderTargets[0] = FRenderTargetBinding(OutlineTexture, ERenderTargetLoadAction::ENoAction);
 
 		// Fullscreen-triangle VS: its only output is SV_Position, matching the pixel shaders' input signature.

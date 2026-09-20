@@ -50,6 +50,21 @@ struct FOxiOutlineGlobals
 };
 
 /**
+ * One dash trail. A dash is a teleport, so there is no motion for the renderer to find: gameplay says where the
+ * object came from and how strong the trail is, and the renderer projects that into screen space per view.
+ */
+struct FOxiOutlineSmear
+{
+	FVector Start = FVector::ZeroVector;	// world position the dash started from
+	FVector End = FVector::ZeroVector;		// where the object is now
+	float Strength = 1.f;					// fades to 0 over the dash's duration
+	float Falloff = 1.5f;					// how fast ink fades along the trail
+	float Opacity = 1.f;
+	float MaxLength = 160.f;				// px at the reference height
+	uint32 Stencil = 0;						// custom stencil value this trail belongs to
+};
+
+/**
  * Post-process outlines driven by custom depth + custom stencil.
  * Runs before TSR/DOF/motion blur/bloom, so lines get anti-aliased with the scene, emissive lines bloom,
  * and after-DOF translucency (most particles) is composited over them.
@@ -68,6 +83,9 @@ public:
 	 */
 	void SetFocus_GameThread(const FLinearColor& InColor, float InEmissiveIntensity, float InAmount);
 
+	/** Game thread. Replaces the set of dash trails being drawn. */
+	void SetSmears_GameThread(TArray<FOxiOutlineSmear> InSmears);
+
 	virtual void PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessingInputs& Inputs) override;
 
 protected:
@@ -82,6 +100,7 @@ private:
 	TArray<FOxiOutlineStyleGPU> Styles_RenderThread;
 	FOxiOutlineGlobals Globals_RenderThread;
 	float MaxStyleWidth_RenderThread = 0.f;
+	TArray<FOxiOutlineSmear> Smears_RenderThread;
 
 	FVector4f FocusColor_RenderThread = FVector4f::Zero();	// rgb focus color, a emissive intensity
 	float FocusAmount_RenderThread = 0.f;

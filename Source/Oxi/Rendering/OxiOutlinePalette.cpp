@@ -44,6 +44,14 @@ EDataValidationResult UOxiOutlinePalette::IsDataValid(FDataValidationContext& Co
 			Context.AddError(FText::Format(LOCTEXT("DuplicateName", "Outline style name '{0}' is used more than once."), FText::FromName(Style.Name)));
 			Result = EDataValidationResult::Invalid;
 		}
+		if (Style.StencilValue >= UOxiOutlineSubsystem::FirstSmearStencil)
+		{
+			Context.AddError(FText::Format(
+				LOCTEXT("ReservedStencil", "Stencil value {0} is reserved for dash smears; use a value below {1}."),
+				Style.StencilValue, UOxiOutlineSubsystem::FirstSmearStencil));
+			Result = EDataValidationResult::Invalid;
+		}
+
 		SeenStencils.Add(Style.StencilValue);
 		SeenNames.Add(Style.Name);
 	}
