@@ -45,6 +45,8 @@ public:
 		SHADER_PARAMETER(FVector2f, DistanceFalloff)
 		SHADER_PARAMETER(FVector2f, SelfOverlap)
 		SHADER_PARAMETER(FVector2f, OcclusionBias)
+		SHADER_PARAMETER(FVector4f, FocusColor)
+		SHADER_PARAMETER(float, FocusAmount)
 		SHADER_PARAMETER(float, WidthScale)
 		SHADER_PARAMETER(float, MaxWidth)
 		SHADER_PARAMETER(float, SearchRadius)
@@ -107,6 +109,29 @@ void FOxiOutlineSceneViewExtension::SetPalette_GameThread(TArray<FOxiOutlineStyl
 		});
 }
 
+void FOxiOutlineSceneViewExtension::SetFocus_GameThread(const FLinearColor& InColor, float InEmissiveIntensity, float InAmount)
+{
+	check(IsInGameThread());
+
+	const FVector4f Color(InColor.R, InColor.G, InColor.B, InEmissiveIntensity);
+	const float Amount = FMath::Clamp(InAmount, 0.f, 1.f);
+
+	// Usually driven by an aim blend, so skip the render command when nothing moved.
+	if (Color.Equals(FocusColor_GameThread) && FMath::IsNearlyEqual(Amount, FocusAmount_GameThread))
+	{
+		return;
+	}
+	FocusColor_GameThread = Color;
+	FocusAmount_GameThread = Amount;
+
+	ENQUEUE_RENDER_COMMAND(OxiSetOutlineFocus)(
+		[this, KeepAlive = AsShared(), Color, Amount](FRHICommandListImmediate&)
+		{
+			FocusColor_RenderThread = Color;
+			FocusAmount_RenderThread = Amount;
+		});
+}
+
 bool FOxiOutlineSceneViewExtension::IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const
 {
 	return bHasStyles && CVarOxiOutlines.GetValueOnGameThread() != 0;
@@ -163,6 +188,8 @@ void FOxiOutlineSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder&
 		Parameters->DistanceFalloff = FVector2f(Globals.NearDistance, 1.f / FMath::Max(Globals.FarDistance - Globals.NearDistance, 1.f));
 		Parameters->SelfOverlap = FVector2f(Globals.SelfOverlapDepth, Globals.SelfOverlapDepthPerPixel);
 		Parameters->OcclusionBias = FVector2f(Globals.OcclusionBias, Globals.OcclusionBiasPerDepth);
+		Parameters->FocusColor = FocusColor_RenderThread;
+		Parameters->FocusAmount = FocusAmount_RenderThread;
 		Parameters->WidthScale = WidthScale;
 		Parameters->MaxWidth = MaxWidth;
 		Parameters->SearchRadius = SearchRadius;

@@ -63,6 +63,7 @@ void UOxiOutlineSubsystem::RefreshPalette()
 			const FLinearColor Emissive = Style.EmissiveColor * Style.EmissiveIntensity;
 			GPUStyle.EmissiveFloor = FVector4f(Emissive.R, Emissive.G, Emissive.B, Style.MinBrightness);
 			GPUStyle.Width = FVector4f(Style.Width, Style.MinWidth, Style.InteriorWidthScale, Style.Opacity);
+			GPUStyle.Misc = FVector4f(Style.FocusInfluence, 0.f, 0.f, 0.f);
 			GPUStyle.Flags.X = EOxiOutlineFlags::Enabled
 				| (Style.bShowThroughWalls ? EOxiOutlineFlags::ThroughWalls : 0)
 				| (Style.bInteriorLines ? EOxiOutlineFlags::InteriorLines : 0);
@@ -80,6 +81,18 @@ void UOxiOutlineSubsystem::RefreshPalette()
 	Globals.OcclusionBiasPerDepth = Settings->OcclusionBiasPerDepth;
 
 	Extension->SetPalette_GameThread(MoveTemp(GPUStyles), Globals);
+}
+
+void UOxiOutlineSubsystem::SetFocus(const FLinearColor& Color, float EmissiveIntensity, float Amount)
+{
+	FocusColor = Color;
+	FocusEmissiveIntensity = EmissiveIntensity;
+	FocusAmount = Amount;
+
+	if (Extension.IsValid())
+	{
+		Extension->SetFocus_GameThread(Color, EmissiveIntensity, Amount);
+	}
 }
 
 int32 UOxiOutlineSubsystem::FindStencilValue(FName StyleName) const
@@ -123,6 +136,22 @@ void UOxiOutlineLibrary::ClearOutline(UPrimitiveComponent* Component)
 	{
 		Component->SetRenderCustomDepth(false);
 		Component->SetCustomDepthStencilValue(0);
+	}
+}
+
+void UOxiOutlineLibrary::SetOutlineFocus(FLinearColor Color, float Amount, float EmissiveIntensity)
+{
+	if (UOxiOutlineSubsystem* Subsystem = UOxiOutlineSubsystem::Get())
+	{
+		Subsystem->SetFocus(Color, EmissiveIntensity, Amount);
+	}
+}
+
+void UOxiOutlineLibrary::SetOutlineFocusAmount(float Amount)
+{
+	if (UOxiOutlineSubsystem* Subsystem = UOxiOutlineSubsystem::Get())
+	{
+		Subsystem->SetFocus(Subsystem->GetFocusColor(), Subsystem->GetFocusEmissiveIntensity(), Amount);
 	}
 }
 

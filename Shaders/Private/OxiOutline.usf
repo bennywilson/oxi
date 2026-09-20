@@ -15,6 +15,7 @@ struct FOxiOutlineStyle
 	float4 ColorDim;		// rgb line color, a dim amount
 	float4 EmissiveFloor;	// rgb emissive, a minimum brightness when dimmed
 	float4 Width;			// x width (px @ reference height), y width at far distance, z interior line scale, w opacity
+	float4 Misc;			// x focus influence, yzw unused
 	uint4 Flags;			// x flags
 };
 
@@ -28,6 +29,8 @@ int4 ViewRect;				// min.xy, max.xy (exclusive), in scene texture pixels
 float2 DistanceFalloff;		// near depth, 1 / (far - near)
 float2 SelfOverlap;			// depth gap: constant, per depth per pixel of distance
 float2 OcclusionBias;		// visibility slack: constant, per depth
+float4 FocusColor;			// rgb focus color, a emissive intensity
+float FocusAmount;			// 0 = styles keep their own color, 1 = fully focused
 float WidthScale;			// view height / reference height
 float MaxWidth;				// cap on authored width (px @ reference height)
 float SearchRadius;			// px, largest distance at which any line can cover a pixel
@@ -199,8 +202,11 @@ void OutlinePS(float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0
 
 	const FOxiOutlineStyle Style = Styles[BestStencil];
 
+	// Styles that opt in tint toward the global focus color (per-weapon aim highlight).
+	const float Focus = saturate(FocusAmount * Style.Misc.x);
+	float3 LineColor = lerp(Style.ColorDim.rgb, FocusColor.rgb, Focus);
+
 	// Dim by how lit the outlined object is right next to the line: displayed scene color relative to its albedo.
-	float3 LineColor = Style.ColorDim.rgb;
 	if (Style.ColorDim.a > 0.0)
 	{
 		const float2 BufferUV = (float2(BestPos) + 0.5) * View.BufferSizeAndInvSize.zw;
@@ -213,7 +219,8 @@ void OutlinePS(float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0
 	}
 
 	// Same units as material emissive, so values/bloom behave like an emissive material would.
-	const float3 Emissive = Style.EmissiveFloor.rgb * View.PreExposure;
+	// The focus color can add its own glow, so a highlight can ramp up as the player aims.
+	const float3 Emissive = (Style.EmissiveFloor.rgb + FocusColor.rgb * FocusColor.a * Focus) * View.PreExposure;
 	const float Opacity = Style.Width.w;
 
 	OutColor = float4(BestCoverage * (LineColor * Opacity + Emissive), BestCoverage * Opacity);

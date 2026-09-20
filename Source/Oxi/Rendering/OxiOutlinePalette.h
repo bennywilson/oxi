@@ -42,6 +42,13 @@ struct FOxiOutlineStyle
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Emissive", meta = (ClampMin = 0))
 	float EmissiveIntensity = 0.f;
 
+	/**
+	 * How far this style tints toward the global focus color (see SetOutlineFocus), where the weapon being
+	 * aimed sets the color. 0 = never tints. Enemy styles want 1; world props usually want 0.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Focus", meta = (ClampMin = 0, ClampMax = 1))
+	float FocusInfluence = 0.f;
+
 	/** Line width in pixels at 1080p for objects up close. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Width", meta = (ClampMin = 0))
 	float Width = 3.f;

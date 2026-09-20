@@ -13,6 +13,7 @@ struct FOxiOutlineStyleGPU
 	FVector4f ColorDim = FVector4f::Zero();			// rgb line color, a dim amount
 	FVector4f EmissiveFloor = FVector4f::Zero();	// rgb emissive (color * intensity), a minimum brightness when dimmed
 	FVector4f Width = FVector4f::Zero();			// x width (px @ reference height), y width at far distance, z interior line scale, w opacity
+	FVector4f Misc = FVector4f::Zero();				// x focus influence, yzw unused
 	FUintVector4 Flags = FUintVector4(0, 0, 0, 0);	// x EOxiOutlineFlags
 };
 
@@ -61,6 +62,12 @@ public:
 	/** Game thread. Styles are indexed by stencil value (0 is always "no outline"). */
 	void SetPalette_GameThread(TArray<FOxiOutlineStyleGPU> InStyles, const FOxiOutlineGlobals& InGlobals);
 
+	/**
+	 * Game thread. Tints styles that opt in (focus influence > 0) toward a color, for things like
+	 * weapon-specific highlights while aiming. Amount is usually the aim blend, so it can be driven per frame.
+	 */
+	void SetFocus_GameThread(const FLinearColor& InColor, float InEmissiveIntensity, float InAmount);
+
 	virtual void PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessingInputs& Inputs) override;
 
 protected:
@@ -69,7 +76,13 @@ protected:
 private:
 	std::atomic<bool> bHasStyles = false;
 
+	FVector4f FocusColor_GameThread = FVector4f::Zero();
+	float FocusAmount_GameThread = 0.f;
+
 	TArray<FOxiOutlineStyleGPU> Styles_RenderThread;
 	FOxiOutlineGlobals Globals_RenderThread;
 	float MaxStyleWidth_RenderThread = 0.f;
+
+	FVector4f FocusColor_RenderThread = FVector4f::Zero();	// rgb focus color, a emissive intensity
+	float FocusAmount_RenderThread = 0.f;
 };
