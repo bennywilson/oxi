@@ -45,7 +45,7 @@ struct FOxiSmearInstance
 {
 	float4 StartEnd;	// xy where the trail starts, zw where the object is now, both in pixels
 	float4 Params;		// x falloff, y opacity, z radius (px), w strength
-	float4 Depths;		// x view depth at the start, y at the object, z taper, w unused
+	float4 Depths;		// x view depth at the start, y at the object, z taper, w tap spacing (0 = swept band)
 	float4 Bounds;		// screen rect (min.xy, max.xy) the trail can touch, so other pixels skip it cheaply
 	uint4 Stencil;		// x stencil value this trail belongs to
 };
@@ -169,20 +169,67 @@ float4 ComputeSmear(int2 PixelPos, FOutlineSample Center, uint CenterStencil, bo
 
 		const float2 Start = Smear.StartEnd.xy;
 		const float2 Segment = Smear.StartEnd.zw - Start;
-		const float Along = saturate(dot(Pixel - Start, Segment) / max(dot(Segment, Segment), 0.0001));
-		const float DistanceToTrail = length(Pixel - (Start + Segment * Along));
+		const float TrailLength = length(Segment);
+		const float TapStep = Smear.Depths.w;
 
-		// Narrower at the far end, the way an inked smear tapers off behind what left it.
-		const float Radius = Smear.Params.z * lerp(Smear.Depths.z, 1.0, Along);
-		const float Edge = saturate(Radius - DistanceToTrail + 0.5);
-		if (Edge <= 0.0)
+		float Along = 0.0;
+		float Edge = 0.0;
+
+		if (TapStep > 0.0)
 		{
-			continue;
+			// Large objects drag their own silhouette along the trail, the way a stretched hull did. Anything
+			// smaller than the tap spacing would fall between samples, which is why small objects use the band below.
+			const float2 Direction = Segment / max(TrailLength, 0.0001);
+
+			LOOP
+			for (int Tap = 0; Tap < 32; ++Tap)
+			{
+				const float TapDistance = float(Tap) * TapStep;
+				if (TapDistance > TrailLength)
+				{
+					break;
+				}
+
+				const int2 SamplePos = clamp(PixelPos + int2(round(Direction * TapDistance)), ViewRect.xy, ViewRect.zw - 1);
+				if (LoadStencil(SamplePos) != Smear.Stencil.x)
+				{
+					continue;
+				}
+
+				const FOutlineSample Sample = LoadDepths(SamplePos, Smear.Stencil.x);
+				if (!IsCustomDepthVisible(Sample))
+				{
+					continue;
+				}
+
+				// Something in front of the object hides its trail here.
+				if (Center.SceneDepth < Sample.CustomDepth - GetBias(Sample.CustomDepth))
+				{
+					break;
+				}
+
+				Along = saturate(1.0 - TapDistance / max(TrailLength, 0.0001));
+				Edge = 1.0;
+				break;
+			}
+		}
+		else
+		{
+			// Small objects: the trail is the band they swept, tapering off behind them.
+			Along = saturate(dot(Pixel - Start, Segment) / max(dot(Segment, Segment), 0.0001));
+			const float DistanceToTrail = length(Pixel - (Start + Segment * Along));
+			const float Radius = Smear.Params.z * lerp(Smear.Depths.z, 1.0, Along);
+			Edge = saturate(Radius - DistanceToTrail + 0.5);
+
+			// Geometry in front of the trail hides it.
+			const float TrailDepth = lerp(Smear.Depths.x, Smear.Depths.y, Along);
+			if (Center.SceneDepth < TrailDepth - GetBias(TrailDepth))
+			{
+				Edge = 0.0;
+			}
 		}
 
-		// Geometry in front of the trail hides it.
-		const float TrailDepth = lerp(Smear.Depths.x, Smear.Depths.y, Along);
-		if (Center.SceneDepth < TrailDepth - GetBias(TrailDepth))
+		if (Edge <= 0.0)
 		{
 			continue;
 		}

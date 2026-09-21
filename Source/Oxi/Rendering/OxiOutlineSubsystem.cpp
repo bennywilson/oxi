@@ -188,6 +188,10 @@ bool UOxiOutlineSubsystem::StartSmear(AActor* Actor, const FVector& FromLocation
 		Component->SetCustomDepthStencilValue(SmearStencil);
 	}
 
+	// Measure the trail against the outlined mesh rather than the actor, whose bounds take in everything
+	// attached to it and would describe something far larger than the character.
+	Smear.TrackedComponent = Smear.Components[0];
+
 	UE_LOG(LogOxi, Verbose, TEXT("StartOutlineSmear: '%s' %d component(s), style stencil %d borrowing %d for %.2fs."),
 		*Actor->GetName(), Smear.Components.Num(), Smear.BaseStencil, SmearStencil, Duration);
 
@@ -341,7 +345,10 @@ void UOxiOutlineSubsystem::PushSmears()
 		}
 
 		const UPrimitiveComponent* Tracked = Active.TrackedComponent.Get();
-		const FVector Location = GetSmearLocation(Active);
+
+		// A dash trail starts from a location gameplay captured off the actor, so its end has to come from the
+		// actor too or the trail would be offset by however far the mesh sits from the actor's origin.
+		const FVector Location = Active.bFollowMotion ? GetSmearLocation(Active) : Actor->GetActorLocation();
 
 		FOxiOutlineSmear& Smear = Smears.AddDefaulted_GetRef();
 		Smear.End = Location;

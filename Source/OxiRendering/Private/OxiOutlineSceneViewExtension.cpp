@@ -250,7 +250,7 @@ void FOxiOutlineSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder&
 		}
 
 		const FVector2f Trail = EndPixel - StartPixel;
-		const float TrailLength = Trail.Size();
+		float TrailLength = Trail.Size();
 		if (TrailLength < 1.f)
 		{
 			continue;
@@ -263,6 +263,7 @@ void FOxiOutlineSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder&
 			const float Fraction = MaxLength / TrailLength;
 			StartPixel = EndPixel - Trail * Fraction;
 			StartDepth = FMath::Lerp(EndDepth, StartDepth, Fraction);
+			TrailLength = MaxLength;
 		}
 
 		// How wide the object is on screen decides how wide its trail is.
@@ -274,7 +275,13 @@ void FOxiOutlineSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder&
 		FOxiSmearInstanceGPU& Instance = SmearInstances.AddDefaulted_GetRef();
 		Instance.StartEnd = FVector4f(StartPixel.X, StartPixel.Y, EndPixel.X, EndPixel.Y);
 		Instance.Params = FVector4f(FMath::Max(Smear.Falloff, 0.01f), FMath::Clamp(Smear.Opacity, 0.f, 1.f), RadiusPixels, FMath::Clamp(Smear.Strength, 0.f, 1.f));
-		Instance.Depths = FVector4f(StartDepth, EndDepth, FMath::Clamp(Smear.Taper, 0.f, 1.f), 0.f);
+		// Spread the taps evenly over the trail so the silhouette's copies overlap into one smear instead of
+		// reading as separate ghosts. An object narrower than that spacing falls between taps, so it uses the
+		// swept band instead - which is what a bullet casing wants anyway.
+		const float TapStep = FMath::Max(TrailLength / 31.f, 1.f);
+		const bool bSilhouette = RadiusPixels >= 6.f && TapStep <= RadiusPixels * 0.5f;
+
+		Instance.Depths = FVector4f(StartDepth, EndDepth, FMath::Clamp(Smear.Taper, 0.f, 1.f), bSilhouette ? TapStep : 0.f);
 		Instance.Bounds = FVector4f(BoundsMin.X, BoundsMin.Y, BoundsMax.X, BoundsMax.Y);
 		Instance.Stencil = FUintVector4(Smear.Stencil, 0, 0, 0);
 	}
