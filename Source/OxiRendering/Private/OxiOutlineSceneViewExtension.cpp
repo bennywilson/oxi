@@ -7,6 +7,7 @@
 #include "GlobalShader.h"
 #include "PixelShaderUtils.h"
 #include "PostProcess/PostProcessInputs.h"
+#include "PostProcess/PostProcessMaterialInputs.h"
 #include "RenderGraphUtils.h"
 #include "SceneTexturesConfig.h"
 #include "SceneView.h"
@@ -106,7 +107,13 @@ public:
 	SHADER_USE_PARAMETER_STRUCT(FOxiOutlineCompositePS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SceneColorTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, SceneColorSampler)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, OutlineTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, OutlineSampler)
+		SHADER_PARAMETER(FVector2f, SceneColorExtentInverse)
+		SHADER_PARAMETER(FVector4f, OutlineMapping0)
+		SHADER_PARAMETER(FVector4f, OutlineMapping1)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -318,21 +325,64 @@ void FOxiOutlineSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder&
 		FPixelShaderUtils::AddFullscreenPass(GraphBuilder, ShaderMap, RDG_EVENT_NAME("OxiOutline Detect"), PixelShader, Parameters, ViewRect);
 	}
 
-	// Composite premultiplied lines over scene color, leaving scene color alpha untouched.
+	// Composited later, in Composite_RenderThread. See FPendingOutline.
+	PendingOutlines_RenderThread.Add({ &View, OutlineTexture, ViewRect });
+}
+
+void FOxiOutlineSceneViewExtension::PreRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& InViewFamily)
+{
+	// The textures belong to last frame's graph.
+	PendingOutlines_RenderThread.Reset();
+}
+
+void FOxiOutlineSceneViewExtension::SubscribeToPostProcessingPass(EPostProcessingPass Pass, const FSceneView& View, FPostProcessingPassDelegateArray& InOutPassCallbacks, bool bIsPassEnabled)
+{
+	// Before depth of field: past the point where the renderer keeps scene color for screen-space tracing, but
+	// still early enough that lines are blurred with the objects they belong to, hidden by translucency, and
+	// that emissive ink blooms.
+	if (Pass == EPostProcessingPass::BeforeDOF)
 	{
-		TShaderMapRef<FOxiOutlineCompositePS> PixelShader(ShaderMap);
-
-		FOxiOutlineCompositePS::FParameters* Parameters = GraphBuilder.AllocParameters<FOxiOutlineCompositePS::FParameters>();
-		Parameters->OutlineTexture = OutlineTexture;
-		Parameters->RenderTargets[0] = FRenderTargetBinding(SceneColor, ERenderTargetLoadAction::ELoad);
-
-		FPixelShaderUtils::AddFullscreenPass(
-			GraphBuilder,
-			ShaderMap,
-			RDG_EVENT_NAME("OxiOutline Composite"),
-			PixelShader,
-			Parameters,
-			ViewRect,
-			TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI());
+		InOutPassCallbacks.Add(FPostProcessingPassDelegate::CreateRaw(this, &FOxiOutlineSceneViewExtension::Composite_RenderThread));
 	}
+}
+
+FScreenPassTexture FOxiOutlineSceneViewExtension::Composite_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessMaterialInputs& Inputs)
+{
+	const FScreenPassTexture SceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, Inputs.GetInput(EPostProcessMaterialInput::SceneColor));
+
+	const FPendingOutline* Pending = PendingOutlines_RenderThread.FindByPredicate(
+		[&View](const FPendingOutline& Outline) { return Outline.View == &View; });
+
+	if (!Pending || !Pending->Texture || !SceneColor.IsValid())
+	{
+		return SceneColor;
+	}
+
+	FScreenPassRenderTarget Output = Inputs.OverrideOutput;
+	if (!Output.IsValid())
+	{
+		Output = FScreenPassRenderTarget::CreateFromInput(GraphBuilder, SceneColor, ERenderTargetLoadAction::ENoAction, TEXT("OxiOutlineComposite"));
+	}
+
+	const FIntRect OutputRect = Output.ViewRect;
+	const FIntRect OutlineRect = Pending->ViewRect;
+	const FVector2f OutlineScale(
+		OutlineRect.Width() / static_cast<float>(FMath::Max(OutputRect.Width(), 1)),
+		OutlineRect.Height() / static_cast<float>(FMath::Max(OutputRect.Height(), 1)));
+	const FIntPoint OutlineExtent = Pending->Texture->Desc.Extent;
+
+	FOxiOutlineCompositePS::FParameters* Parameters = GraphBuilder.AllocParameters<FOxiOutlineCompositePS::FParameters>();
+	Parameters->SceneColorTexture = SceneColor.Texture;
+	Parameters->SceneColorSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	Parameters->OutlineTexture = Pending->Texture;
+	Parameters->OutlineSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	Parameters->SceneColorExtentInverse = FVector2f(1.f / SceneColor.Texture->Desc.Extent.X, 1.f / SceneColor.Texture->Desc.Extent.Y);
+	Parameters->OutlineMapping0 = FVector4f(OutputRect.Min.X, OutputRect.Min.Y, OutlineScale.X, OutlineScale.Y);
+	Parameters->OutlineMapping1 = FVector4f(OutlineRect.Min.X, OutlineRect.Min.Y, 1.f / OutlineExtent.X, 1.f / OutlineExtent.Y);
+	Parameters->RenderTargets[0] = Output.GetRenderTargetBinding();
+
+	TShaderMapRef<FOxiOutlineCompositePS> PixelShader(GetGlobalShaderMap(View.GetFeatureLevel()));
+	FPixelShaderUtils::AddFullscreenPass(GraphBuilder, GetGlobalShaderMap(View.GetFeatureLevel()), RDG_EVENT_NAME("OxiOutline Composite"), PixelShader, Parameters, OutputRect);
+
+	return MoveTemp(Output);
 }

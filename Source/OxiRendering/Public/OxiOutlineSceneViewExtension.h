@@ -3,7 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "RenderGraphResources.h"
 #include "SceneViewExtension.h"
+#include "ScreenPass.h"
 
 #include <atomic>
 
@@ -88,12 +90,30 @@ public:
 	/** Game thread. Replaces the set of dash trails being drawn. */
 	void SetSmears_GameThread(TArray<FOxiOutlineSmear> InSmears);
 
+	virtual void PreRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& InViewFamily) override;
 	virtual void PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessingInputs& Inputs) override;
+	virtual void SubscribeToPostProcessingPass(EPostProcessingPass Pass, const FSceneView& View, FPostProcessingPassDelegateArray& InOutPassCallbacks, bool bIsPassEnabled) override;
 
 protected:
 	virtual bool IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const override;
 
 private:
+	/**
+	 * Lines are found before post processing, where custom depth, the GBuffer and scene color all line up at
+	 * render resolution, but they are composited later. Writing them into scene color any earlier would feed
+	 * them to Lumen's screen traces next frame, and emissive outlines would light the scene like GI.
+	 */
+	struct FPendingOutline
+	{
+		const FSceneView* View = nullptr;
+		FRDGTextureRef Texture = nullptr;
+		FIntRect ViewRect;
+	};
+
+	FScreenPassTexture Composite_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const struct FPostProcessMaterialInputs& Inputs);
+
+	TArray<FPendingOutline, TInlineAllocator<2>> PendingOutlines_RenderThread;
+
 	std::atomic<bool> bHasStyles = false;
 
 	FVector4f FocusColor_GameThread = FVector4f::Zero();

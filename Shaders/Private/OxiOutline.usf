@@ -53,7 +53,13 @@ struct FOxiSmearInstance
 StructuredBuffer<FOxiSmearInstance> Smears;
 int NumSmears;
 
+Texture2D SceneColorTexture;
+SamplerState SceneColorSampler;
 Texture2D OutlineTexture;
+SamplerState OutlineSampler;
+float2 SceneColorExtentInverse;
+float4 OutlineMapping0;		// xy output viewport min, zw output pixels to outline pixels
+float4 OutlineMapping1;		// xy outline viewport min, zw 1 / outline texture extent
 
 // Integer steps so every sample lands on a pixel center. Diagonals/knight moves step further per iteration.
 #if OUTLINE_16_DIRECTIONS
@@ -365,7 +371,16 @@ void OutlinePS(float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0
 	OutColor = float4(Line.rgb + Tail.rgb * (1.0 - Line.a), Line.a + Tail.a * (1.0 - Line.a));
 }
 
+// Lines are composited into a fresh texture rather than written back into scene color: the renderer keeps scene
+// color for next frame's screen-space tracing, so ink written there would end up lighting the scene like GI.
 void CompositePS(float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0)
 {
-	OutColor = OutlineTexture.Load(int3(SvPosition.xy, 0));
+	const float4 Scene = SceneColorTexture.SampleLevel(SceneColorSampler, SvPosition.xy * SceneColorExtentInverse, 0);
+
+	// Lines are found at render resolution, which is not the resolution of the scene color being composited into.
+	const float2 OutlinePixel = (SvPosition.xy - OutlineMapping0.xy) * OutlineMapping0.zw + OutlineMapping1.xy;
+	const float4 Outline = OutlineTexture.SampleLevel(OutlineSampler, OutlinePixel * OutlineMapping1.zw, 0);
+
+	// Ink is premultiplied, and scene color's alpha is left alone.
+	OutColor = float4(Scene.rgb * (1.0 - Outline.a) + Outline.rgb, Scene.a);
 }
