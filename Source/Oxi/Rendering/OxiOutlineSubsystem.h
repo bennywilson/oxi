@@ -36,6 +36,9 @@ public:
 	/** Starts a dash trail from FromLocation to the actor's current position, fading out over Duration. */
 	bool StartSmear(AActor* Actor, const FVector& FromLocation, float Duration);
 
+	/** Starts a trail that follows a moving object, spanning where it was TrailSeconds ago. Duration <= 0 runs until stopped. */
+	bool StartMotionSmear(AActor* Actor, float TrailSeconds, float Duration);
+
 	/** Ends a dash trail early and puts the actor's outline back. */
 	void StopSmear(AActor* Actor);
 
@@ -52,6 +55,10 @@ private:
 	struct FActiveSmear
 	{
 		TWeakObjectPtr<AActor> Actor;
+
+		/** The outlined component the trail follows. Physics often runs on a child mesh, not the actor's root. */
+		TWeakObjectPtr<UPrimitiveComponent> TrackedComponent;
+
 		TArray<TWeakObjectPtr<UPrimitiveComponent>> Components;
 		TArray<int32> OriginalStencils;
 		int32 SmearStencil = 0;
@@ -59,10 +66,20 @@ private:
 		FVector Start = FVector::ZeroVector;
 		float Duration = 0.f;
 		float TimeLeft = 0.f;
+
+		/** Motion trails follow the object instead of running from a fixed point, and never borrow a stencil value. */
+		bool bFollowMotion = false;
+		float TrailSeconds = 0.f;
+		FVector LastLocation = FVector::ZeroVector;
+		FVector FallbackVelocity = FVector::ZeroVector;
 	};
+
+	/** Trails are looped over per pixel, so keep the count sane. */
+	static constexpr int32 MaxActiveSmears = 16;
 
 	bool Tick(float DeltaSeconds);
 	void PushSmears();
+	static FVector GetSmearLocation(const FActiveSmear& Smear);
 	const struct FOxiOutlineStyle* FindStyleByStencil(int32 StencilValue) const;
 
 	TArray<FActiveSmear> ActiveSmears;
@@ -117,6 +134,15 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Oxi|Outlines")
 	static bool StartOutlineSmear(AActor* Actor, FVector FromLocation, float Duration = 0.15f);
+
+	/**
+	 * Trails a moving object's outline ink behind it, for things that fly rather than teleport, like ejected
+	 * casings. The trail spans where the object was TrailSeconds ago and fades out as the object slows,
+	 * using the SmearMinSpeed / SmearFullSpeed on its style. Duration of 0 runs until the actor is destroyed
+	 * or StopOutlineSmear is called. Safe to call on spawn.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Oxi|Outlines")
+	static bool StartOutlineMotionSmear(AActor* Actor, float TrailSeconds = 0.06f, float Duration = 0.f);
 
 	UFUNCTION(BlueprintCallable, Category = "Oxi|Outlines")
 	static void StopOutlineSmear(AActor* Actor);

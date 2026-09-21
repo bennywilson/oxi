@@ -55,11 +55,13 @@ struct FOxiOutlineGlobals
  */
 struct FOxiOutlineSmear
 {
-	FVector Start = FVector::ZeroVector;	// world position the dash started from
+	FVector Start = FVector::ZeroVector;	// world position the trail runs from
 	FVector End = FVector::ZeroVector;		// where the object is now
-	float Strength = 1.f;					// fades to 0 over the dash's duration
+	float Radius = 0.f;						// object's world radius, used to bound the trail on screen
+	float Strength = 1.f;					// fades to 0 as the dash ends, or as a moving object slows down
 	float Falloff = 1.5f;					// how fast ink fades along the trail
 	float Opacity = 1.f;
+	float Taper = 0.4f;						// how much narrower the trail is at its far end
 	float MaxLength = 160.f;				// px at the reference height
 	uint32 Stencil = 0;						// custom stencil value this trail belongs to
 };

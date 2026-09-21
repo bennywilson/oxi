@@ -72,9 +72,25 @@ struct FOxiOutlineStyle
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Smear", meta = (ClampMin = 0, ClampMax = 512))
 	float SmearMaxLength = 160.f;
 
+	/** Motion trails only: speed (cm/s) below which a moving object leaves no trail, so resting casings are clean. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Smear", meta = (ClampMin = 0, ForceUnits = "cm/s"))
+	float SmearMinSpeed = 150.f;
+
+	/** Motion trails only: speed (cm/s) at which the trail reaches full strength. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Smear", meta = (ClampMin = 1, ForceUnits = "cm/s"))
+	float SmearFullSpeed = 800.f;
+
 	/** How fast the ink fades along the trail, away from the object. 1 = linear, higher = fades out sooner. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Smear", meta = (ClampMin = 0.1, ClampMax = 8))
 	float SmearFalloff = 1.5f;
+
+	/** How wide the trail is relative to the object. 1 = as wide as the object, lower = a thinner streak. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Smear", meta = (ClampMin = 0.05, ClampMax = 4))
+	float SmearWidthScale = 1.f;
+
+	/** How much narrower the trail is at its far end. 1 = a straight band, lower = tapers to a point. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Smear", meta = (ClampMin = 0, ClampMax = 1))
+	float SmearTaper = 0.4f;
 
 	/** Ink opacity where the trail meets the object. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Smear", meta = (ClampMin = 0, ClampMax = 1))

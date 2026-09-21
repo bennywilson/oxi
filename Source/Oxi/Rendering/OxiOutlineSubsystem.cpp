@@ -81,7 +81,8 @@ void UOxiOutlineSubsystem::RefreshPalette()
 	// A smearing actor borrows a reserved stencil value, so give that value the same look as the style it came from.
 	for (const FActiveSmear& Smear : ActiveSmears)
 	{
-		if (GPUStyles.IsValidIndex(Smear.SmearStencil) && GPUStyles.IsValidIndex(Smear.BaseStencil))
+		if (Smear.SmearStencil != Smear.BaseStencil
+			&& GPUStyles.IsValidIndex(Smear.SmearStencil) && GPUStyles.IsValidIndex(Smear.BaseStencil))
 		{
 			GPUStyles[Smear.SmearStencil] = GPUStyles[Smear.BaseStencil];
 		}
@@ -198,6 +199,58 @@ bool UOxiOutlineSubsystem::StartSmear(AActor* Actor, const FVector& FromLocation
 	return true;
 }
 
+bool UOxiOutlineSubsystem::StartMotionSmear(AActor* Actor, float TrailSeconds, float Duration)
+{
+	if (!Actor || TrailSeconds <= 0.f || !Extension.IsValid())
+	{
+		return false;
+	}
+
+	StopSmear(Actor);
+
+	if (ActiveSmears.Num() >= MaxActiveSmears)
+	{
+		return false;
+	}
+
+	// A motion trail keeps the object's own stencil value: several objects can share a style and still each
+	// get their own trail, so this does not eat one of the dash slots.
+	int32 BaseStencil = INDEX_NONE;
+	UPrimitiveComponent* TrackedComponent = nullptr;
+	Actor->ForEachComponent<UPrimitiveComponent>(false, [this, &BaseStencil, &TrackedComponent](UPrimitiveComponent* Component)
+	{
+		if (BaseStencil == INDEX_NONE && Component->bRenderCustomDepth && FindStyleByStencil(Component->CustomDepthStencilValue))
+		{
+			BaseStencil = Component->CustomDepthStencilValue;
+			TrackedComponent = Component;
+		}
+	});
+
+	if (BaseStencil == INDEX_NONE)
+	{
+		UE_LOG(LogOxi, Warning,
+			TEXT("StartOutlineMotionSmear: '%s' has no component rendering custom depth with a stencil value the outline palette defines, so there is no ink to trail."),
+			*Actor->GetName());
+		return false;
+	}
+
+	FActiveSmear Smear;
+	Smear.Actor = Actor;
+	Smear.TrackedComponent = TrackedComponent;
+	Smear.SmearStencil = BaseStencil;
+	Smear.BaseStencil = BaseStencil;
+	Smear.bFollowMotion = true;
+	Smear.TrailSeconds = TrailSeconds;
+	Smear.Duration = Duration;
+	Smear.TimeLeft = Duration;
+	Smear.Start = GetSmearLocation(Smear);
+	Smear.LastLocation = Smear.Start;
+
+	ActiveSmears.Add(MoveTemp(Smear));
+	PushSmears();
+	return true;
+}
+
 void UOxiOutlineSubsystem::StopSmear(AActor* Actor)
 {
 	const int32 Index = ActiveSmears.IndexOfByPredicate(
@@ -233,7 +286,17 @@ bool UOxiOutlineSubsystem::Tick(float DeltaSeconds)
 		FActiveSmear& Smear = ActiveSmears[Index];
 		Smear.TimeLeft -= DeltaSeconds;
 
-		if (Smear.TimeLeft <= 0.f || !Smear.Actor.IsValid())
+		// Tracked here because GetComponentVelocity() reports nothing for movement that isn't physics driven.
+		if (Smear.Actor.IsValid() && DeltaSeconds > 0.f)
+		{
+			const FVector Location = GetSmearLocation(Smear);
+			Smear.FallbackVelocity = (Location - Smear.LastLocation) / DeltaSeconds;
+			Smear.LastLocation = Location;
+		}
+
+		// A motion trail with no duration runs until it is stopped or its actor goes away.
+		const bool bExpired = Smear.Duration > 0.f && Smear.TimeLeft <= 0.f;
+		if (bExpired || !Smear.Actor.IsValid())
 		{
 			// Put the outline back. A destroyed actor has nothing left to restore.
 			for (int32 i = 0; i < Smear.Components.Num(); ++i)
@@ -277,17 +340,65 @@ void UOxiOutlineSubsystem::PushSmears()
 			continue;
 		}
 
+		const UPrimitiveComponent* Tracked = Active.TrackedComponent.Get();
+		const FVector Location = GetSmearLocation(Active);
+
 		FOxiOutlineSmear& Smear = Smears.AddDefaulted_GetRef();
-		Smear.Start = Active.Start;
-		Smear.End = Actor->GetActorLocation();
-		Smear.Strength = FMath::Clamp(Active.TimeLeft / FMath::Max(Active.Duration, UE_KINDA_SMALL_NUMBER), 0.f, 1.f);
+		Smear.End = Location;
+
+		// Trail width follows how wide the object is, measured horizontally so a tall character doesn't get a
+		// trail as wide as it is high.
+		const FVector Extent = Tracked ? Tracked->Bounds.BoxExtent : Actor->GetComponentsBoundingBox(true).GetExtent();
+		Smear.Radius = FMath::Max(FMath::Max(Extent.X, Extent.Y), 1.0) * Style->SmearWidthScale;
+
+		if (Active.bFollowMotion)
+		{
+			// The trail spans where the object was a moment ago, and thins out as it slows to a stop.
+			// Physics usually runs on a mesh component, while the actor's root sits still, so ask the component.
+			FVector Velocity = Tracked ? Tracked->GetComponentVelocity() : Actor->GetVelocity();
+			if (Velocity.IsNearlyZero())
+			{
+				Velocity = Active.FallbackVelocity;
+			}
+
+			const float Speed = Velocity.Size();
+			const float FullSpeed = FMath::Max(Style->SmearFullSpeed, Style->SmearMinSpeed + 1.f);
+			Smear.Start = Location - Velocity * Active.TrailSeconds;
+			Smear.Strength = FMath::Clamp((Speed - Style->SmearMinSpeed) / (FullSpeed - Style->SmearMinSpeed), 0.f, 1.f);
+
+			// A trail with a duration still fades out at the end of it.
+			if (Active.Duration > 0.f)
+			{
+				Smear.Strength *= FMath::Clamp(Active.TimeLeft / Active.Duration, 0.f, 1.f);
+			}
+		}
+		else
+		{
+			Smear.Start = Active.Start;
+			Smear.Strength = FMath::Clamp(Active.TimeLeft / FMath::Max(Active.Duration, UE_KINDA_SMALL_NUMBER), 0.f, 1.f);
+		}
+
 		Smear.Falloff = Style->SmearFalloff;
 		Smear.Opacity = Style->SmearOpacity;
+		Smear.Taper = Style->SmearTaper;
 		Smear.MaxLength = Style->SmearMaxLength;
 		Smear.Stencil = static_cast<uint32>(Active.SmearStencil);
 	}
 
 	Extension->SetSmears_GameThread(MoveTemp(Smears));
+}
+
+FVector UOxiOutlineSubsystem::GetSmearLocation(const FActiveSmear& Smear)
+{
+	// Follow the outlined component: a shell casing simulates physics on a child mesh while the actor's root,
+	// and so GetActorLocation(), never moves.
+	if (const UPrimitiveComponent* Component = Smear.TrackedComponent.Get())
+	{
+		return Component->GetComponentLocation();
+	}
+
+	const AActor* Actor = Smear.Actor.Get();
+	return Actor ? Actor->GetActorLocation() : FVector::ZeroVector;
 }
 
 const FOxiOutlineStyle* UOxiOutlineSubsystem::FindStyleByStencil(int32 StencilValue) const
@@ -360,6 +471,12 @@ bool UOxiOutlineLibrary::StartOutlineSmear(AActor* Actor, FVector FromLocation, 
 {
 	UOxiOutlineSubsystem* Subsystem = UOxiOutlineSubsystem::Get();
 	return Subsystem ? Subsystem->StartSmear(Actor, FromLocation, Duration) : false;
+}
+
+bool UOxiOutlineLibrary::StartOutlineMotionSmear(AActor* Actor, float TrailSeconds, float Duration)
+{
+	UOxiOutlineSubsystem* Subsystem = UOxiOutlineSubsystem::Get();
+	return Subsystem ? Subsystem->StartMotionSmear(Actor, TrailSeconds, Duration) : false;
 }
 
 void UOxiOutlineLibrary::StopOutlineSmear(AActor* Actor)

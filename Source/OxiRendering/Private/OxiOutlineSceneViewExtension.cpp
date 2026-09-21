@@ -30,18 +30,20 @@ DECLARE_GPU_STAT_NAMED(OxiOutlines, TEXT("Oxi Outlines"));
 // Mirrors FOxiSmearInstance in OxiOutline.usf.
 struct FOxiSmearInstanceGPU
 {
-	FVector4f DirLength = FVector4f::Zero();
+	FVector4f StartEnd = FVector4f::Zero();
 	FVector4f Params = FVector4f::Zero();
+	FVector4f Depths = FVector4f::Zero();
+	FVector4f Bounds = FVector4f::Zero();
 	FUintVector4 Stencil = FUintVector4(0, 0, 0, 0);
 };
 
 // These are read as structured buffers, so a field added on one side and not the other shifts every element
 // and quietly corrupts the whole palette. Update the matching struct in OxiOutline.usf when these change.
 static_assert(sizeof(FOxiOutlineStyleGPU) == 5 * sizeof(FVector4f), "FOxiOutlineStyleGPU must match FOxiOutlineStyle in OxiOutline.usf");
-static_assert(sizeof(FOxiSmearInstanceGPU) == 3 * sizeof(FVector4f), "FOxiSmearInstanceGPU must match FOxiSmearInstance in OxiOutline.usf");
+static_assert(sizeof(FOxiSmearInstanceGPU) == 5 * sizeof(FVector4f), "FOxiSmearInstanceGPU must match FOxiSmearInstance in OxiOutline.usf");
 
 // World position to pixels in this view's render-resolution rect. False when it is behind the camera.
-static bool ProjectToViewPixels(const FSceneView& View, const FIntRect& ViewRect, const FVector& WorldPosition, FVector2f& OutPixel)
+static bool ProjectToViewPixels(const FSceneView& View, const FIntRect& ViewRect, const FVector& WorldPosition, FVector2f& OutPixel, float& OutDepth)
 {
 	const FVector4 ScreenPosition = View.WorldToScreen(WorldPosition);
 	FVector2D PixelPosition;
@@ -49,6 +51,7 @@ static bool ProjectToViewPixels(const FSceneView& View, const FIntRect& ViewRect
 	{
 		return false;
 	}
+	OutDepth = static_cast<float>(ScreenPosition.W);
 
 	// ScreenToPixel works in unscaled viewport pixels, but the pass runs at render resolution.
 	const FIntRect Unscaled = View.UnscaledViewRect;
@@ -227,24 +230,52 @@ void FOxiOutlineSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder&
 	for (const FOxiOutlineSmear& Smear : Smears_RenderThread)
 	{
 		FVector2f StartPixel, EndPixel;
-		if (Smear.Strength <= 0.f
-			|| !ProjectToViewPixels(View, ViewRect, Smear.Start, StartPixel)
-			|| !ProjectToViewPixels(View, ViewRect, Smear.End, EndPixel))
+		float StartDepth = 0.f, EndDepth = 0.f;
+		if (Smear.Strength <= 0.f || !ProjectToViewPixels(View, ViewRect, Smear.End, EndPixel, EndDepth))
+		{
+			continue;
+		}
+
+		// A long trail can start behind the camera, where there is no projection. Pull it in toward the object
+		// until it lands on screen, so an over-long trail is shortened rather than dropped.
+		bool bStartProjected = false;
+		for (float Reach = 1.f; !bStartProjected && Reach > 0.03f; Reach *= 0.5f)
+		{
+			bStartProjected = ProjectToViewPixels(View, ViewRect, FMath::Lerp(Smear.End, Smear.Start, Reach), StartPixel, StartDepth);
+		}
+
+		if (!bStartProjected)
 		{
 			continue;
 		}
 
 		const FVector2f Trail = EndPixel - StartPixel;
-		const float TrailLength = FMath::Min(Trail.Size(), Smear.MaxLength * WidthScale);
+		const float TrailLength = Trail.Size();
 		if (TrailLength < 1.f)
 		{
 			continue;
 		}
 
+		// A long dash would otherwise paint ink right across the screen.
+		const float MaxLength = Smear.MaxLength * WidthScale;
+		if (TrailLength > MaxLength)
+		{
+			const float Fraction = MaxLength / TrailLength;
+			StartPixel = EndPixel - Trail * Fraction;
+			StartDepth = FMath::Lerp(EndDepth, StartDepth, Fraction);
+		}
+
+		// How wide the object is on screen decides how wide its trail is.
+		const float ProjectionScale = View.ViewMatrices.GetProjectionMatrix().M[0][0] * 0.5f * ViewRect.Width();
+		const float RadiusPixels = FMath::Max(Smear.Radius * ProjectionScale / FMath::Max(EndDepth, 1.f), 1.f);
+		const FVector2f BoundsMin = FVector2f::Min(StartPixel, EndPixel) - RadiusPixels;
+		const FVector2f BoundsMax = FVector2f::Max(StartPixel, EndPixel) + RadiusPixels;
+
 		FOxiSmearInstanceGPU& Instance = SmearInstances.AddDefaulted_GetRef();
-		const FVector2f Direction = Trail.GetSafeNormal();
-		Instance.DirLength = FVector4f(Direction.X, Direction.Y, TrailLength, FMath::Clamp(Smear.Strength, 0.f, 1.f));
-		Instance.Params = FVector4f(FMath::Max(Smear.Falloff, 0.01f), FMath::Clamp(Smear.Opacity, 0.f, 1.f), 0.f, 0.f);
+		Instance.StartEnd = FVector4f(StartPixel.X, StartPixel.Y, EndPixel.X, EndPixel.Y);
+		Instance.Params = FVector4f(FMath::Max(Smear.Falloff, 0.01f), FMath::Clamp(Smear.Opacity, 0.f, 1.f), RadiusPixels, FMath::Clamp(Smear.Strength, 0.f, 1.f));
+		Instance.Depths = FVector4f(StartDepth, EndDepth, FMath::Clamp(Smear.Taper, 0.f, 1.f), 0.f);
+		Instance.Bounds = FVector4f(BoundsMin.X, BoundsMin.Y, BoundsMax.X, BoundsMax.Y);
 		Instance.Stencil = FUintVector4(Smear.Stencil, 0, 0, 0);
 	}
 

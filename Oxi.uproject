@@ -20,7 +20,8 @@
 		},
 		{
 			"Name": "OxiEditor",
-			"Type": "Editor"
+			"Type": "Editor",
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [
@@ -412,10 +413,6 @@
 		},
 		{
 			"Name": "N10XSourceCodeAccess",
-			"Enabled": false
-		},
-		{
-			"Name": "RenderDocPlugin",
 			"Enabled": false
 		},
 		{
