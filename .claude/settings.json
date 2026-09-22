@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(E=/c/projects/Unreal-Oxi/Engine; cat $E/Build/Build.version | grep -E 'Major|Minor|Patch'; ls $E/Binaries/Win64/UnrealEditor-Cmd.exe; ls -d $E/Plugins/Experimental/PythonScriptPlugin $E/Plugins/Editor/PythonScriptPlugin $E/Plugins/*/PythonScriptPlugin 2>/dev/null; ls $E/Binaries/Win64/ | grep -i -E 'PythonScript|EditorScripting' | head; find $E/Plugins -maxdepth 3 -name \"PythonScriptPlugin\" -o -maxdepth 3 -name \"EditorScriptingUtilities\" 2>/dev/null)",
+      "Read(//c/projects/Unreal-Oxi/Engine/Build/**)"
+    ]
+  }
+}
