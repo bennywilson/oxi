@@ -26,8 +26,13 @@ protected:
 	FColor FakeLightColor;
 
 	UPROPERTY(Transient)
-	UMaterialParameterCollection* FakeLightMPC;
+	UMaterialParameterCollection* FakeLightMPC = nullptr;
 
 private:
-	void SetFakeLightParam(const FName ParamName, const FLinearColor& NewColor);
+	// Pushes the current color/direction to the world's MPC instance.
+	// Skips the write when nothing changed since the last push (unless bForce).
+	void UpdateFakeLight(bool bForce);
+
+	FColor LastPushedColor = FColor::Black;
+	FVector LastPushedDirection = FVector::ZeroVector;
 };

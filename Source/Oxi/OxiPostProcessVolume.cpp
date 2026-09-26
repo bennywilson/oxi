@@ -2,7 +2,9 @@
 
 
 #include "OxiPostProcessVolume.h"
+#include "Engine/World.h"
 #include "Materials/MaterialParameterCollection.h"
+#include "Materials/MaterialParameterCollectionInstance.h"
 
 void AOxiPostProcessVolume::BeginPlay()
 {
@@ -11,8 +13,12 @@ void AOxiPostProcessVolume::BeginPlay()
 	if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 	{
 		FakeLightMPC = LoadObject<UMaterialParameterCollection>(nullptr, TEXT("/Game/Oxi/Core/MPCs/MPC_FakeLight"));
-		SetFakeLightParam("FakeLight_Color", FakeLightColor);
-		SetFakeLightParam("FakeLight_Direction", FakeLightColor);
+		if (!FakeLightMPC)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("AOxiPostProcessVolume: failed to load MPC_FakeLight; fake light disabled."));
+			return;
+		}
+		UpdateFakeLight(true);
 	}
 }
 
@@ -22,21 +28,34 @@ void AOxiPostProcessVolume::Tick(float DeltaTime)
 
 	if (this->HasActorBegunPlay() && !HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 	{
-		SetFakeLightParam("FakeLight_Color", FakeLightColor);
-		SetFakeLightParam("FakeLight_Direction", FakeLightColor);
+		UpdateFakeLight(false);
 	}
 }
 
-void AOxiPostProcessVolume::SetFakeLightParam(const FName ParamName, const FLinearColor& NewColor)
+void AOxiPostProcessVolume::UpdateFakeLight(bool bForce)
 {
-	const FGuid LightColorGUID = FakeLightMPC->GetParameterId(ParamName);
-	int OutIndex = 0;
-	int OutCompIndex = 0;
-	FakeLightMPC->GetParameterIndex(LightColorGUID, OutIndex, OutCompIndex);
-	if (OutIndex < 0 || OutIndex > FakeLightMPC->VectorParameters.Num())
+	UWorld* World = GetWorld();
+	if (!FakeLightMPC || !World)
 	{
 		return;
 	}
 
-	FakeLightMPC->VectorParameters[OutIndex].DefaultValue = FakeLightColor;
+	if (!bForce && FakeLightColor == LastPushedColor && FakeLightDirection.Equals(LastPushedDirection))
+	{
+		return;
+	}
+
+	// Write to the runtime instance, not the MPC asset, so the asset is never modified.
+	UMaterialParameterCollectionInstance* Instance = World->GetParameterCollectionInstance(FakeLightMPC);
+	if (!Instance)
+	{
+		return;
+	}
+
+	Instance->SetVectorParameterValue(TEXT("FakeLight_Color"), FLinearColor(FakeLightColor));
+	Instance->SetVectorParameterValue(TEXT("FakeLight_Direction"),
+		FLinearColor(FakeLightDirection.X, FakeLightDirection.Y, FakeLightDirection.Z, 0.f));
+
+	LastPushedColor = FakeLightColor;
+	LastPushedDirection = FakeLightDirection;
 }
