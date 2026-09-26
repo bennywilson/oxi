@@ -10,7 +10,7 @@ void AOxiPostProcessVolume::BeginPlay()
 
 	if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 	{
-		FakeLightMPC = LoadObject<UMaterialParameterCollection>(nullptr, TEXT("/Game/Oxi/Core/MPCs/FakeLight_MPC"));
+		FakeLightMPC = LoadObject<UMaterialParameterCollection>(nullptr, TEXT("/Game/Oxi/Core/MPCs/MPC_FakeLight"));
 		SetFakeLightParam("FakeLight_Color", FakeLightColor);
 		SetFakeLightParam("FakeLight_Direction", FakeLightColor);
 	}
