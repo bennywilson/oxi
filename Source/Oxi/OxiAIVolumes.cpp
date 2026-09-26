@@ -28,7 +28,7 @@ AOxiAISquadMemberSpawn::AOxiAISquadMemberSpawn(const FObjectInitializer& ObjectI
 			FName ID_SpawnSquadTrigger;
 			FText NAME_OxiAISpawn;
 			FConstructorStatics()
-				: SquadSpawnTexture(TEXT("/Game/Oxi/Editor/S_HiddenHand"))
+				: SquadSpawnTexture(TEXT("/Game/Oxi/Core/Editor/S_HiddenHand"))
 				, ID_SpawnSquadTrigger(TEXT("SpawnSquad"))
 				, NAME_OxiAISpawn(NSLOCTEXT("SpriteCategory", "OxiAISpawnSquad", "OxiAISpawnSquads"))
 			{
