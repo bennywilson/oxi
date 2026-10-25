@@ -63,7 +63,7 @@ void UOxiUserSettings::SetToDefaults()
  */
 void UOxiUserSettings::SetGraphicsQualityLevel(const int32 QualityLevel, const bool Force)
 {
-	UE_LOG(LogOxi, Log, TEXT("%s"), *FString::Printf(TEXT("UOxiGameUserSettings::SetQualityLevel(%d)"), QualityLevel));
+	UE_LOG(LogOxi, Log, TEXT("%s"), *FString::Printf(TEXT("UOxiGameUserSettings::SetGraphicsQualityLevel(%d)"), QualityLevel));
 
 	if (!Force)
 	{
@@ -78,7 +78,7 @@ void UOxiUserSettings::SetGraphicsQualityLevel(const int32 QualityLevel, const b
 
 		if (TargetQuality == GraphicsQualityLevel)
 		{
-			UE_LOG(LogTemp, Log, TEXT("%s"), *FString::Printf(TEXT("UOxiGameUserSettings::SetQualityLevel(%d)"), QualityLevel));
+			UE_LOG(LogTemp, Log, TEXT("%s"), *FString::Printf(TEXT("UOxiGameUserSettings::SetGraphicsQualityLevel(%d)"), QualityLevel));
 			return;
 		}
 	}
