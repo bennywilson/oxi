@@ -92,3 +92,7 @@ Saved
 
 UE5.0
 *.zip
+
+# Rider
+.idea/
+*.DotSettings.user
