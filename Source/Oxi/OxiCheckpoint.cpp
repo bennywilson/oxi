@@ -27,7 +27,7 @@ AOxiCheckpoint::AOxiCheckpoint()
 			FName ID_Name;
 			FText Name_Name;
 			FConstructorStatics()
-				: SpriteTexture(TEXT("/Game/Oxi/Editor/S_Checkpoint"))
+				: SpriteTexture(TEXT("/Game/Oxi/Core/Editor/S_Checkpoint"))
 				, ID_Name(TEXT("SpawnSquad"))
 				, Name_Name(NSLOCTEXT("SpriteCategory", "OxiAISpawnSquad", "OxiAISpawnSquads"))
 			{

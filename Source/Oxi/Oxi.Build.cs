@@ -26,6 +26,10 @@ public class Oxi : ModuleRules
 			}
 		);
 
+		// Engine class that makes a config object show up automatically in Project Settings and persist to an .ini
+		// Ex: OxiOutlineSettings
+		PrivateDependencyModuleNames.AddRange(new string[] { "DeveloperSettings", "OxiRendering" });
+
         if (Target.bBuildEditor)
         {
     		PrivateDependencyModuleNames.AddRange(new string[] { "AssetTools", "UnrealEd" });

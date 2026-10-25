@@ -1,0 +1,9 @@
+{
+	"BuildId": "29da480e-8e6e-4817-8069-db7f820f9dbb",
+	"Modules": 
+	{
+		"Oxi": "UnrealEditor-Oxi.dll",
+		"OxiEditor": "UnrealEditor-OxiEditor.dll",
+		"OxiRendering": "UnrealEditor-OxiRendering.dll"
+	}
+}
