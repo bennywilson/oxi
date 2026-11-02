@@ -3,49 +3,57 @@
 #pragma once
 
 #include "GameFramework/GameUserSettings.h"
+#include "Scalability.h"
 #include "OxiUserSettings.generated.h"
 
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnLightingQualityChanged, EOxiQualityLevelFlags);
-
-
-/**
- *
- */
-UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
-enum class EOxiQualityLevelFlags : uint32
+/** What a UOxiLightQualityComponent's light is for. */
+UENUM()
+enum class EOxiLightRole : uint8
 {
-	None = 0 UMETA(Hidden),
-	Low = 1 << 0,
-	Medium = 1 << 1,
-	High = 1 << 2,
-	Ultra = 1 << 3
+	/** Always shown. */
+	Always,
+	/** Stands in for Lumen GI, so it's only shown while Lumen GI is off. */
+	GIFill UMETA(DisplayName = "GI Fill"),
 };
-ENUM_CLASS_FLAGS(EOxiQualityLevelFlags);
+
+/** A scalability level (sg.* value), plus Never. Cinematic counts as Epic. */
+UENUM()
+enum class EOxiQualityLevel : uint8
+{
+	Low,
+	Medium,
+	High,
+	Epic,
+	Never,
+};
 
 /**
- *
+ * Graphics quality is Unreal's scalability system: the sg.* groups, whose per-level cvars live in
+ * Config/DefaultScalability.ini. Use UGameUserSettings::SetOverallScalabilityLevel + ApplySettings
+ * to change it, and the editor viewport's Scalability menu or the `scalability N` command to test it.
  */
-UCLASS(config = GameUserSettings, defaultconfig, BlueprintType, Blueprintable, meta = (DisplayName = "Oxi User Settings"))
+UCLASS(config = GameUserSettings, BlueprintType, Blueprintable, meta = (DisplayName = "Oxi User Settings"))
 class OXI_API UOxiUserSettings : public UGameUserSettings
 {
 	GENERATED_BODY()
 
 public:
-	FOnLightingQualityChanged OnLightingQualityChanged;
+	/** The overall scalability level a first-time player starts on. */
+	static constexpr int32 DefaultScalabilityLevel = 1;
 
-	virtual void SetToDefaults() override;
+	virtual void LoadSettings(bool bForceReload = false) override;
 
-	UFUNCTION(BlueprintCallable, Category = Settings)
-	void SetGraphicsQualityLevel(const int32 QualityLevel, const bool force);
-
-	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = "Graphics")
-	EOxiQualityLevelFlags GraphicsQualityLevel = EOxiQualityLevelFlags::None;
+	/** Kept only for Entry.umap's existing node. Force is unused; ApplySettings always applies. */
+	UFUNCTION(BlueprintCallable, Category = Settings, meta = (DeprecatedFunction, DeprecationMessage = "Use Set Overall Scalability Level followed by Apply Settings."))
+	void SetGraphicsQualityLevel(const int32 QualityLevel, const bool Force);
 
 	static UOxiUserSettings* GetOxiUserSettings();
 };
 
 /**
- *
+ * Shows or hides the owner's light, and turns its shadows on or off, to suit the scalability settings.
+ * GI Fill lights follow whether Lumen GI is on, so DefaultScalability.ini stays the only place that decides it.
+ * Shadows follow sg.ShadowQuality.
  */
 UCLASS(ClassGroup = (Lighting), meta = (BlueprintSpawnableComponent), HideCategories = (Activation, Collision, Cooking, AssetUserData, Tags, ComponentReplication, Rendering, LOD, Physics, Mobility, Replication, Events, Input))
 class UOxiLightQualityComponent : public UActorComponent
@@ -53,26 +61,39 @@ class UOxiLightQualityComponent : public UActorComponent
 	GENERATED_BODY()
 
 protected:
-	void OnRegister() override;
+	virtual void OnRegister() override;
+	virtual void OnUnregister() override;
+
+	virtual void Serialize(FArchive& Ar) override;
+	virtual void PreSave(FObjectPreSaveContext SaveContext) override;
 
 #if WITH_EDITOR
-	void PostEditChangeProperty(FPropertyChangedEvent& Event);
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& Event) override;
 #endif
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (Bitmask, BitmaskEnum = "/Script/Oxi.EOxiQualityLevelFlags"))
-	int32 LightVisibilityMask;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Light Quality")
+	EOxiLightRole Role = EOxiLightRole::Always;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (Bitmask, BitmaskEnum = "/Script/Oxi.EOxiQualityLevelFlags"))
-	int32 CastShadowMask;
+	/** Lowest sg.ShadowQuality at which the light casts shadows. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Light Quality")
+	EOxiQualityLevel MinShadowQuality = EOxiQualityLevel::Low;
+
+#if WITH_EDITORONLY_DATA
+	// Old per-level bitmasks (bit 0 = Low ... bit 3 = Epic), converted to Role and MinShadowQuality on load.
+	// Delete them and the conversion once every asset using this component has been resaved.
+	// -1 means nothing to convert.
+	UPROPERTY()
+	int32 LightVisibilityMask_DEPRECATED = -1;
+
+	UPROPERTY()
+	int32 CastShadowMask_DEPRECATED = -1;
+#endif
 
 private:
-	void UpdateLight(const EOxiQualityLevelFlags NewQualitySetting);
+	void OnScalabilityChanged(const Scalability::FQualityLevels& QualityLevels);
+	void UpdateLight(const bool bLumenGIOn, const int32 ShadowQuality);
+
+#if WITH_EDITORONLY_DATA
+	void ConvertDeprecatedMasks();
+#endif
 };
-
-inline int32 ToInt32(EOxiQualityLevelFlags QualityLevel)
-{
-	const int32 QualityMask = (int32)QualityLevel;
-	ensureMsgf(QualityMask && !(QualityMask & (QualityMask - 1)), TEXT("ToInt32(EOxiQualityLevelFlags) called with invalid bitmask: %d. Expected exactly one bit set."), QualityMask);
-	return FMath::FloorLog2(QualityMask);
-
-}
