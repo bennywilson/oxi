@@ -5,8 +5,11 @@
 #include "Components/LightComponentBase.h"
 #include "Containers/Ticker.h"
 #include "HAL/IConsoleManager.h"
+#include "Kismet/GameplayStatics.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Serialization/CustomVersion.h"
+#include "Sound/SoundClass.h"
+#include "Sound/SoundMix.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/ObjectSaveContext.h"
 
@@ -28,6 +31,12 @@ namespace
 	};
 
 	FCustomVersionRegistration GRegisterOxiLightQualityVersion(FOxiLightQualityVersion::GUID, FOxiLightQualityVersion::LatestVersion, TEXT("OxiLightQualityVersion"));
+
+	// Nothing else references the mix, so make sure it gets cooked (see DirectoriesToAlwaysCook).
+	const TSoftObjectPtr<USoundMix> UserVolumeMix(FSoftObjectPath(TEXT("/Game/Oxi/Sounds/SCM_UserVolume.SCM_UserVolume")));
+	const TSoftObjectPtr<USoundClass> SFXClass(FSoftObjectPath(TEXT("/Game/Oxi/Sounds/SC_SFX.SC_SFX")));
+	const TSoftObjectPtr<USoundClass> VOClass(FSoftObjectPath(TEXT("/Game/Oxi/Sounds/SC_VO.SC_VO")));
+	const TSoftObjectPtr<USoundClass> MusicClass(FSoftObjectPath(TEXT("/Game/Oxi/Sounds/SC_Music.SC_Music")));
 
 	/** True when Lumen is the GI method and DefaultScalability.ini allows its diffuse GI at the current level. */
 	bool IsLumenGIOn()
@@ -66,6 +75,53 @@ void UOxiUserSettings::LoadSettings(bool bForceReload)
 		UE_LOG(LogOxi, Log, TEXT("No saved scalability, defaulting to level %d"), DefaultScalabilityLevel);
 		ScalabilityQuality.SetFromSingleQualityLevel(DefaultScalabilityLevel);
 	}
+}
+
+/**
+ *
+ */
+void UOxiUserSettings::SetToDefaults()
+{
+	Super::SetToDefaults();
+
+	MasterVolume = 1.f;
+	SFXVolume = 1.f;
+	VOVolume = 1.f;
+	MusicVolume = 1.f;
+}
+
+/**
+ *
+ */
+void UOxiUserSettings::ApplyAudioSettings(const UObject* WorldContextObject) const
+{
+	USoundMix* const Mix = UserVolumeMix.LoadSynchronous();
+	if (!Mix)
+	{
+		UE_LOG(LogOxi, Warning, TEXT("ApplyAudioSettings: %s not found, volume settings ignored."), *UserVolumeMix.ToString());
+		return;
+	}
+
+	// SC_Master is left out of the mix and multiplied into each child instead, so the result doesn't
+	// depend on how sound class volumes inherit. Sounds should use a child class, not SC_Master itself.
+	const auto Override = [&](const TSoftObjectPtr<USoundClass>& Class, const float Volume)
+	{
+		if (USoundClass* const LoadedClass = Class.LoadSynchronous())
+		{
+			UGameplayStatics::SetSoundMixClassOverride(WorldContextObject, Mix, LoadedClass, MasterVolume * Volume, 1.f, 0.f, false);
+		}
+		else
+		{
+			UE_LOG(LogOxi, Warning, TEXT("ApplyAudioSettings: %s not found."), *Class.ToString());
+		}
+	};
+
+	Override(SFXClass, SFXVolume);
+	Override(VOClass, VOVolume);
+	Override(MusicClass, MusicVolume);
+
+	// Pushing an already active mix just bumps its ref count, which is harmless since it's never popped.
+	UGameplayStatics::PushSoundMixModifier(WorldContextObject, Mix);
 }
 
 /**
