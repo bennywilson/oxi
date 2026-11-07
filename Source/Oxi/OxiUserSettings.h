@@ -39,19 +39,19 @@ class OXI_API UOxiUserSettings : public UGameUserSettings
 
 public:
 	/** The overall scalability level a first-time player starts on. */
-	static constexpr int32 DefaultScalabilityLevel = 1;
+	static constexpr int32 DefaultScalabilityLevel = 2;
 
 	virtual void LoadSettings(bool bForceReload = false) override;
 	virtual void SetToDefaults() override;
 
-	/** Kept only for Entry.umap's existing node. Force is unused; ApplySettings always applies. */
+	/** Kept for the node in Entry.umap's level Blueprint. Force is unused, because ApplySettings always applies. */
 	UFUNCTION(BlueprintCallable, Category = Settings, meta = (DeprecatedFunction, DeprecationMessage = "Use Set Overall Scalability Level followed by Apply Settings."))
 	void SetGraphicsQualityLevel(const int32 QualityLevel, const bool Force);
 
 	UFUNCTION(BlueprintPure, Category = Settings, meta = (DisplayName = "Get Oxi User Settings"))
 	static UOxiUserSettings* GetOxiUserSettings();
 
-	// Volumes are 0..1. Setters only store the value; call ApplyAudioSettings to hear it and SaveSettings to keep it.
+	// Volumes range from 0 to 1. The setters only store the value. ApplyAudioSettings makes it audible, and SaveSettings keeps it.
 
 	UFUNCTION(BlueprintCallable, Category = "Settings|Audio")
 	void SetMasterVolume(const float Volume) { MasterVolume = FMath::Clamp(Volume, 0.f, 1.f); }
@@ -112,7 +112,6 @@ protected:
 	virtual void OnRegister() override;
 	virtual void OnUnregister() override;
 
-	virtual void Serialize(FArchive& Ar) override;
 	virtual void PreSave(FObjectPreSaveContext SaveContext) override;
 
 #if WITH_EDITOR
@@ -126,22 +125,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Light Quality")
 	EOxiQualityLevel MinShadowQuality = EOxiQualityLevel::Low;
 
-#if WITH_EDITORONLY_DATA
-	// Old per-level bitmasks (bit 0 = Low ... bit 3 = Epic), converted to Role and MinShadowQuality on load.
-	// Delete them and the conversion once every asset using this component has been resaved.
-	// -1 means nothing to convert.
-	UPROPERTY()
-	int32 LightVisibilityMask_DEPRECATED = -1;
-
-	UPROPERTY()
-	int32 CastShadowMask_DEPRECATED = -1;
-#endif
-
 private:
 	void OnScalabilityChanged(const Scalability::FQualityLevels& QualityLevels);
 	void UpdateLight(const bool bLumenGIOn, const int32 ShadowQuality);
-
-#if WITH_EDITORONLY_DATA
-	void ConvertDeprecatedMasks();
-#endif
 };

@@ -7,33 +7,14 @@
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/ConfigCacheIni.h"
-#include "Serialization/CustomVersion.h"
 #include "Sound/SoundClass.h"
 #include "Sound/SoundMix.h"
-#include "UObject/LinkerLoad.h"
 #include "UObject/ObjectSaveContext.h"
 
 namespace
 {
-	/** Asset versions for UOxiLightQualityComponent. */
-	struct FOxiLightQualityVersion
-	{
-		enum Type
-		{
-			BeforeCustomVersionWasAdded = 0,
-			// LightVisibilityMask/CastShadowMask replaced by Role/MinShadowQuality.
-			RoleAndMinShadowQuality,
-
-			LatestVersion = RoleAndMinShadowQuality
-		};
-
-		static inline const FGuid GUID = FGuid(0x6B1E2F4A, 0x93C04D17, 0xA5E82B61, 0x0F7D3C98);
-	};
-
-	FCustomVersionRegistration GRegisterOxiLightQualityVersion(FOxiLightQualityVersion::GUID, FOxiLightQualityVersion::LatestVersion, TEXT("OxiLightQualityVersion"));
-
-	// Nothing else references the mix, so make sure it gets cooked (see DirectoriesToAlwaysCook).
-	const TSoftObjectPtr<USoundMix> UserVolumeMix(FSoftObjectPath(TEXT("/Game/Oxi/Sounds/SCM_UserVolume.SCM_UserVolume")));
+	// No asset references SCM_UserVolume, so it lives in /Game/Oxi/AlwaysCook, which DefaultGame.ini always cooks.
+	const TSoftObjectPtr<USoundMix> UserVolumeMix(FSoftObjectPath(TEXT("/Game/Oxi/AlwaysCook/SCM_UserVolume.SCM_UserVolume")));
 	const TSoftObjectPtr<USoundClass> SFXClass(FSoftObjectPath(TEXT("/Game/Oxi/Sounds/SC_SFX.SC_SFX")));
 	const TSoftObjectPtr<USoundClass> VOClass(FSoftObjectPath(TEXT("/Game/Oxi/Sounds/SC_VO.SC_VO")));
 	const TSoftObjectPtr<USoundClass> MusicClass(FSoftObjectPath(TEXT("/Game/Oxi/Sounds/SC_Music.SC_Music")));
@@ -102,8 +83,8 @@ void UOxiUserSettings::ApplyAudioSettings(const UObject* WorldContextObject) con
 		return;
 	}
 
-	// SC_Master is left out of the mix and multiplied into each child instead, so the result doesn't
-	// depend on how sound class volumes inherit. Sounds should use a child class, not SC_Master itself.
+	// The mix leaves out SC_Master and multiplies the master volume into each child instead, so the result
+	// doesn't depend on how sound class volumes inherit. A sound assigned to SC_Master itself ignores these settings.
 	const auto Override = [&](const TSoftObjectPtr<USoundClass>& Class, const float Volume)
 	{
 		if (USoundClass* const LoadedClass = Class.LoadSynchronous())
@@ -120,7 +101,7 @@ void UOxiUserSettings::ApplyAudioSettings(const UObject* WorldContextObject) con
 	Override(VOClass, VOVolume);
 	Override(MusicClass, MusicVolume);
 
-	// Pushing an already active mix just bumps its ref count, which is harmless since it's never popped.
+	// Pushing an active mix again only increments its ref count. Nothing pops the mix, so the count doesn't matter.
 	UGameplayStatics::PushSoundMixModifier(WorldContextObject, Mix);
 }
 
@@ -153,38 +134,6 @@ void UOxiLightQualityComponent::OnUnregister()
 	Scalability::OnScalabilitySettingsChanged.RemoveAll(this);
 
 	Super::OnUnregister();
-}
-
-/**
- *
- */
-void UOxiLightQualityComponent::Serialize(FArchive& Ar)
-{
-	Ar.UsingCustomVersion(FOxiLightQualityVersion::GUID);
-
-#if WITH_EDITORONLY_DATA
-	// Only convert when loading an old asset from disk. PIE copies and undo have no linker.
-	const bool bLoadingOldAsset = Ar.IsLoading() && Ar.GetLinker()
-		&& GetLinkerCustomVersion(FOxiLightQualityVersion::GUID) < FOxiLightQualityVersion::RoleAndMinShadowQuality;
-
-	if (bLoadingOldAsset)
-	{
-		// A mask the asset didn't save had the old C++ default of 0. When the archetype is a Blueprint
-		// template rather than the C++ defaults, Role and MinShadowQuality were already copied from it.
-		const int32 UnsavedMask = GetArchetype() == GetClass()->GetDefaultObject() ? 0 : -1;
-		LightVisibilityMask_DEPRECATED = UnsavedMask;
-		CastShadowMask_DEPRECATED = UnsavedMask;
-	}
-#endif
-
-	Super::Serialize(Ar);
-
-#if WITH_EDITORONLY_DATA
-	if (bLoadingOldAsset)
-	{
-		ConvertDeprecatedMasks();
-	}
-#endif
 }
 
 /**
@@ -250,41 +199,3 @@ void UOxiLightQualityComponent::UpdateLight(const bool bLumenGIOn, const int32 S
 	LightComp->SetVisibility(Role == EOxiLightRole::Always || !bLumenGIOn);
 	LightComp->SetCastShadows(bCastShadows);
 }
-
-#if WITH_EDITORONLY_DATA
-/**
- *
- */
-void UOxiLightQualityComponent::ConvertDeprecatedMasks()
-{
-	constexpr int32 AllLevels = 0b1111;
-	constexpr int32 LowAndMedium = 0b0011;
-
-	if (LightVisibilityMask_DEPRECATED >= 0)
-	{
-		const int32 Mask = LightVisibilityMask_DEPRECATED & AllLevels;
-		Role = Mask == LowAndMedium ? EOxiLightRole::GIFill : EOxiLightRole::Always;
-
-		if (Mask != LowAndMedium && Mask != AllLevels)
-		{
-			UE_LOG(LogOxi, Warning, TEXT("%s: old visibility mask 0x%X has no exact match, converted to Always."), *GetPathName(), Mask);
-		}
-	}
-
-	if (CastShadowMask_DEPRECATED >= 0)
-	{
-		const int32 Mask = CastShadowMask_DEPRECATED & AllLevels;
-		MinShadowQuality = Mask ? (EOxiQualityLevel)FMath::CountTrailingZeros((uint32)Mask) : EOxiQualityLevel::Never;
-
-		// The new setting can only express "this level and up".
-		const int32 Expressible = Mask ? AllLevels & ~((1 << (int32)MinShadowQuality) - 1) : 0;
-		if (Mask != Expressible)
-		{
-			UE_LOG(LogOxi, Warning, TEXT("%s: old shadow mask 0x%X has gaps, converted to shadows from level %d up."), *GetPathName(), Mask, (int32)MinShadowQuality);
-		}
-	}
-
-	LightVisibilityMask_DEPRECATED = -1;
-	CastShadowMask_DEPRECATED = -1;
-}
-#endif
