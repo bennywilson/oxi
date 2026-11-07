@@ -17,7 +17,6 @@ public class OxiEditor : ModuleRules
 		{
 			"Core",
 			"CoreUObject",
-			"EditorSubsystem",
 			"Engine",
 			"UnrealEd",
             "Oxi"

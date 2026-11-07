@@ -2,8 +2,32 @@
 
 #include "OxiUserSettings.h"
 #include "Oxi.h"
-#include "Kismet/KismetSystemLibrary.h"
 #include "Components/LightComponentBase.h"
+#include "Containers/Ticker.h"
+#include "HAL/IConsoleManager.h"
+#include "Kismet/GameplayStatics.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Sound/SoundClass.h"
+#include "Sound/SoundMix.h"
+#include "UObject/ObjectSaveContext.h"
+
+namespace
+{
+	// No asset references SCM_UserVolume, so it lives in /Game/Oxi/AlwaysCook, which DefaultGame.ini always cooks.
+	const TSoftObjectPtr<USoundMix> UserVolumeMix(FSoftObjectPath(TEXT("/Game/Oxi/AlwaysCook/SCM_UserVolume.SCM_UserVolume")));
+	const TSoftObjectPtr<USoundClass> SFXClass(FSoftObjectPath(TEXT("/Game/Oxi/Sounds/SC_SFX.SC_SFX")));
+	const TSoftObjectPtr<USoundClass> VOClass(FSoftObjectPath(TEXT("/Game/Oxi/Sounds/SC_VO.SC_VO")));
+	const TSoftObjectPtr<USoundClass> MusicClass(FSoftObjectPath(TEXT("/Game/Oxi/Sounds/SC_Music.SC_Music")));
+
+	/** True when Lumen is the GI method and DefaultScalability.ini allows its diffuse GI at the current level. */
+	bool IsLumenGIOn()
+	{
+		IConsoleManager& ConsoleManager = IConsoleManager::Get();
+		const IConsoleVariable* const GIMethod = ConsoleManager.FindConsoleVariable(TEXT("r.DynamicGlobalIlluminationMethod"));
+		const IConsoleVariable* const LumenAllow = ConsoleManager.FindConsoleVariable(TEXT("r.Lumen.DiffuseIndirect.Allow"));
+		return GIMethod && GIMethod->GetInt() == 1 && LumenAllow && LumenAllow->GetInt() != 0;
+	}
+}
 
 /**
  *
@@ -21,26 +45,18 @@ UOxiUserSettings* UOxiUserSettings::GetOxiUserSettings()
 /**
  *
  */
-static FAutoConsoleCommand SetGraphicsQualityLevelCmd(
-	TEXT("Oxi.SetGraphicsQuality"),
-	TEXT("Sets Graphics Quality Level - 0: Low, 1: Medium, 2: High, 3: Epic"),
-	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
-		{
-			if (Args.Num() >= 1)
-			{
-				const int32 QualityLevel = FCString::Atoi(*Args[0]);
-				UOxiUserSettings* const Settings = UOxiUserSettings::GetOxiUserSettings();
-				if (Settings)
-				{
-					Settings->SetGraphicsQualityLevel(QualityLevel, false);
-				}
-			}
-			else
-			{
-				UE_LOG(LogTemp, Warning, TEXT("Usage: MyGame.SetSetting <Key> <Value>"));
-			}
-		})
-);
+void UOxiUserSettings::LoadSettings(bool bForceReload)
+{
+	Super::LoadSettings(bForceReload);
+
+	// The editor keeps its own scalability, so only the game gets a first-run default.
+	// UGameEngine::Init calls ApplyNonResolutionSettings next, which applies ScalabilityQuality.
+	if (!GIsEditor && !GConfig->DoesSectionExist(TEXT("ScalabilityGroups"), GGameUserSettingsIni))
+	{
+		UE_LOG(LogOxi, Log, TEXT("No saved scalability, defaulting to level %d"), DefaultScalabilityLevel);
+		ScalabilityQuality.SetFromSingleQualityLevel(DefaultScalabilityLevel);
+	}
+}
 
 /**
  *
@@ -49,13 +65,44 @@ void UOxiUserSettings::SetToDefaults()
 {
 	Super::SetToDefaults();
 
-	if (GraphicsQualityLevel == EOxiQualityLevelFlags::None)
-	{
-		UE_LOG(LogTemp, Log, TEXT("GraphicsQualityLevel not set, defaulting to Medium"));
+	MasterVolume = 1.f;
+	SFXVolume = 1.f;
+	VOVolume = 1.f;
+	MusicVolume = 1.f;
+}
 
-		GraphicsQualityLevel = EOxiQualityLevelFlags::Medium;
-		SaveConfig();
+/**
+ *
+ */
+void UOxiUserSettings::ApplyAudioSettings(const UObject* WorldContextObject) const
+{
+	USoundMix* const Mix = UserVolumeMix.LoadSynchronous();
+	if (!Mix)
+	{
+		UE_LOG(LogOxi, Warning, TEXT("ApplyAudioSettings: %s not found, volume settings ignored."), *UserVolumeMix.ToString());
+		return;
 	}
+
+	// The mix leaves out SC_Master and multiplies the master volume into each child instead, so the result
+	// doesn't depend on how sound class volumes inherit. A sound assigned to SC_Master itself ignores these settings.
+	const auto Override = [&](const TSoftObjectPtr<USoundClass>& Class, const float Volume)
+	{
+		if (USoundClass* const LoadedClass = Class.LoadSynchronous())
+		{
+			UGameplayStatics::SetSoundMixClassOverride(WorldContextObject, Mix, LoadedClass, MasterVolume * Volume, 1.f, 0.f, false);
+		}
+		else
+		{
+			UE_LOG(LogOxi, Warning, TEXT("ApplyAudioSettings: %s not found."), *Class.ToString());
+		}
+	};
+
+	Override(SFXClass, SFXVolume);
+	Override(VOClass, VOVolume);
+	Override(MusicClass, MusicVolume);
+
+	// Pushing an active mix again only increments its ref count. Nothing pops the mix, so the count doesn't matter.
+	UGameplayStatics::PushSoundMixModifier(WorldContextObject, Mix);
 }
 
 /**
@@ -63,92 +110,8 @@ void UOxiUserSettings::SetToDefaults()
  */
 void UOxiUserSettings::SetGraphicsQualityLevel(const int32 QualityLevel, const bool Force)
 {
-	UE_LOG(LogOxi, Log, TEXT("%s"), *FString::Printf(TEXT("UOxiGameUserSettings::SetGraphicsQualityLevel(%d)"), QualityLevel));
-
-	if (!Force)
-	{
-		EOxiQualityLevelFlags TargetQuality = EOxiQualityLevelFlags::Medium;
-		switch (QualityLevel)
-		{
-			case 0: TargetQuality = EOxiQualityLevelFlags::Low; break;
-			case 1: TargetQuality = EOxiQualityLevelFlags::Medium; break;
-			case 2: TargetQuality = EOxiQualityLevelFlags::High; break;
-			case 3: TargetQuality = EOxiQualityLevelFlags::Ultra; break;
-		}
-
-		if (TargetQuality == GraphicsQualityLevel)
-		{
-			UE_LOG(LogTemp, Log, TEXT("%s"), *FString::Printf(TEXT("UOxiGameUserSettings::SetGraphicsQualityLevel(%d)"), QualityLevel));
-			return;
-		}
-	}
-
-	Scalability::FQualityLevels Quality;
-	Quality.SetFromSingleQualityLevel(QualityLevel);
-	Scalability::SetQualityLevels(Quality, true);
-
-	IConsoleManager& ConsoleManager = IConsoleManager::Get();
-	IConsoleVariable* const CVarDynamicGIMethod = ConsoleManager.FindConsoleVariable(TEXT("r.DynamicGlobalIlluminationMethod"));
-	IConsoleVariable* const CVarAAMethod = ConsoleManager.FindConsoleVariable(TEXT("r.AntialiasingMethod"));
-	IConsoleVariable* const CVarLumenDiffuseIndirect = ConsoleManager.FindConsoleVariable(TEXT("r.lumen.DiffuseIndirect.Allow"));
-	IConsoleVariable* const CVarReflectionMethod = ConsoleManager.FindConsoleVariable(TEXT("r.reflectionmethod"));
-	IConsoleVariable* const CVarMaxRoughnessToTrace = ConsoleManager.FindConsoleVariable(TEXT("r.Lumen.Reflections.MaxRoughnessToTrace"));
-
-	switch(QualityLevel)
-	{
-		case 0:
-		{
-			CVarDynamicGIMethod->Set(0, ECVF_SetByConsole);
-			CVarLumenDiffuseIndirect->Set(0, ECVF_SetByConsole);
-			CVarReflectionMethod->Set(0, ECVF_SetByConsole);
-			CVarAAMethod->Set(0, ECVF_SetByConsole);
-			CVarMaxRoughnessToTrace->Set(-1.f, ECVF_SetByConsole);
-			break;
-		}
-
-		case 1:
-		{
-			CVarDynamicGIMethod->Set(0, ECVF_SetByConsole);
-			CVarLumenDiffuseIndirect->Set(0, ECVF_SetByConsole);
-			CVarReflectionMethod->Set(0, ECVF_SetByConsole);
-			CVarAAMethod->Set(1, ECVF_SetByConsole);
-			CVarMaxRoughnessToTrace->Set(-1.f, ECVF_SetByConsole);
-			break;
-		}
-
-		case 2: 
-		{
-			CVarDynamicGIMethod->Set(1, ECVF_SetByConsole);
-			CVarLumenDiffuseIndirect->Set(1, ECVF_SetByConsole);
-			CVarReflectionMethod->Set(1, ECVF_SetByConsole);
-			CVarAAMethod->Set(2, ECVF_SetByConsole);
-			CVarMaxRoughnessToTrace->Set(0.4f, ECVF_SetByConsole);
-			break;
-		}
-
-		case 3:
-		{
-			CVarDynamicGIMethod->Set(1, ECVF_SetByConsole);
-			CVarLumenDiffuseIndirect->Set(1, ECVF_SetByConsole);
-			CVarReflectionMethod->Set(1, ECVF_SetByConsole);
-			CVarAAMethod->Set(2, ECVF_SetByConsole);
-			CVarMaxRoughnessToTrace->Set(1.0f, ECVF_SetByConsole);
-			break;
-		}
-	}
-
-	GraphicsQualityLevel = EOxiQualityLevelFlags::Medium;
-	switch(QualityLevel)
-	{
-		case 0: GraphicsQualityLevel = EOxiQualityLevelFlags::Low; break;
-		case 1: GraphicsQualityLevel = EOxiQualityLevelFlags::Medium; break;
-		case 2: GraphicsQualityLevel = EOxiQualityLevelFlags::High; break;
-		case 3: GraphicsQualityLevel = EOxiQualityLevelFlags::Ultra; break;
-	}
-
-	OnLightingQualityChanged.Broadcast(GraphicsQualityLevel);
-
-	SaveConfig();
+	SetOverallScalabilityLevel(QualityLevel);
+	ApplySettings(false);
 }
 
 /**
@@ -158,15 +121,38 @@ void UOxiLightQualityComponent::OnRegister()
 {
 	Super::OnRegister();
 
-	UOxiUserSettings *const Settings = UOxiUserSettings::GetOxiUserSettings();
-	if (Settings)
-	{	
-		UpdateLight(Settings->GraphicsQualityLevel);
+	UpdateLight(IsLumenGIOn(), Scalability::GetQualityLevels().ShadowQuality);
 
-		Settings->OnLightingQualityChanged.AddUObject(
-			this, &UOxiLightQualityComponent::UpdateLight);
-	
-	}
+	Scalability::OnScalabilitySettingsChanged.AddUObject(this, &UOxiLightQualityComponent::OnScalabilityChanged);
+}
+
+/**
+ *
+ */
+void UOxiLightQualityComponent::OnUnregister()
+{
+	Scalability::OnScalabilitySettingsChanged.RemoveAll(this);
+
+	Super::OnUnregister();
+}
+
+/**
+ *
+ */
+void UOxiLightQualityComponent::PreSave(FObjectPreSaveContext SaveContext)
+{
+	Super::PreSave(SaveContext);
+
+	// UpdateLight writes the light's saved bVisible/bCastShadows. Save the Epic state so the saved
+	// values don't depend on the editor's current scalability level. OnRegister reapplies on load.
+	UpdateLight(true, 3);
+
+	// Put the current settings back once the save is done.
+	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this, [this](float)
+		{
+			UpdateLight(IsLumenGIOn(), Scalability::GetQualityLevels().ShadowQuality);
+			return false;
+		}));
 }
 
 /**
@@ -177,30 +163,39 @@ void UOxiLightQualityComponent::PostEditChangeProperty(FPropertyChangedEvent& Ev
 {
 	Super::PostEditChangeProperty(Event);
 
-	if (UOxiUserSettings* Settings = UOxiUserSettings::GetOxiUserSettings())
-	{
-		UpdateLight(Settings->GraphicsQualityLevel);
-	}
+	UpdateLight(IsLumenGIOn(), Scalability::GetQualityLevels().ShadowQuality);
 }
 #endif
 
 /**
  *
  */
-void UOxiLightQualityComponent::UpdateLight(const EOxiQualityLevelFlags NewQualitySetting)
+void UOxiLightQualityComponent::OnScalabilityChanged(const Scalability::FQualityLevels& QualityLevels)
+{
+	// SetQualityLevels broadcasts after applying the ini cvars, so IsLumenGIOn is already up to date.
+	UpdateLight(IsLumenGIOn(), QualityLevels.ShadowQuality);
+}
+
+/**
+ *
+ */
+void UOxiLightQualityComponent::UpdateLight(const bool bLumenGIOn, const int32 ShadowQuality)
 {
 	if (!GetOwner() || GetOwner()->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
 	{
 		return;
 	}
 
-	const uint32 NewSetting = (uint32)NewQualitySetting;
-	auto LightComp = GetOwner()->FindComponentByClass<ULightComponentBase>();
+	ULightComponentBase* const LightComp = GetOwner()->FindComponentByClass<ULightComponentBase>();
 	if (!LightComp)
 	{
 		return;
 	}
 
-	LightComp->SetVisibility(NewSetting & LightVisibilityMask);
-	LightComp->SetCastShadows(NewSetting & CastShadowMask);
+	// Cinematic (4) counts as Epic.
+	const bool bCastShadows = MinShadowQuality != EOxiQualityLevel::Never
+		&& FMath::Min(ShadowQuality, (int32)EOxiQualityLevel::Epic) >= (int32)MinShadowQuality;
+
+	LightComp->SetVisibility(Role == EOxiLightRole::Always || !bLumenGIOn);
+	LightComp->SetCastShadows(bCastShadows);
 }
