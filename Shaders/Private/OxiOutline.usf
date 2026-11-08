@@ -13,6 +13,10 @@
 #define OUTLINE_SMEAR 0
 #endif
 
+#ifndef OUTLINE_DOF_DEPTH
+#define OUTLINE_DOF_DEPTH 0
+#endif
+
 
 // Mirrors FOxiOutlineStyleGPU.
 struct FOxiOutlineStyle
@@ -151,9 +155,11 @@ void GetStyleInk(FOxiOutlineStyle Style, int2 SourcePos, out float3 OutInk, out 
 // Ink trailing a moving or dashing object. The object is not in any buffer along its trail - it teleported, or it
 // has already moved on - so the trail is drawn as the region it swept: the capsule between where it was and where
 // it is now. Searching the stencil buffer for it instead would step straight over anything small, like a casing.
-float4 ComputeSmear(int2 PixelPos, FOutlineSample Center, uint CenterStencil, bool bCenterVisible)
+// OutDepth is the view depth of the trail that wins the pixel.
+float4 ComputeSmear(int2 PixelPos, FOutlineSample Center, uint CenterStencil, bool bCenterVisible, out float OutDepth)
 {
 	float4 Result = 0;
+	OutDepth = Center.SceneDepth;
 	const float2 Pixel = float2(PixelPos) + 0.5;
 
 	LOOP
@@ -180,6 +186,7 @@ float4 ComputeSmear(int2 PixelPos, FOutlineSample Center, uint CenterStencil, bo
 
 		float Along = 0.0;
 		float Edge = 0.0;
+		float TrailDepth = Smear.Depths.y;
 
 		if (TapStep > 0.0)
 		{
@@ -216,6 +223,7 @@ float4 ComputeSmear(int2 PixelPos, FOutlineSample Center, uint CenterStencil, bo
 
 				Along = saturate(1.0 - TapDistance / max(TrailLength, 0.0001));
 				Edge = 1.0;
+				TrailDepth = Sample.CustomDepth;
 				break;
 			}
 		}
@@ -228,7 +236,7 @@ float4 ComputeSmear(int2 PixelPos, FOutlineSample Center, uint CenterStencil, bo
 			Edge = saturate(Radius - DistanceToTrail + 0.5);
 
 			// Geometry in front of the trail hides it.
-			const float TrailDepth = lerp(Smear.Depths.x, Smear.Depths.y, Along);
+			TrailDepth = lerp(Smear.Depths.x, Smear.Depths.y, Along);
 			if (Center.SceneDepth < TrailDepth - GetBias(TrailDepth))
 			{
 				Edge = 0.0;
@@ -247,14 +255,24 @@ float4 ComputeSmear(int2 PixelPos, FOutlineSample Center, uint CenterStencil, bo
 
 		const float Fade = pow(Along, Smear.Params.x) * Smear.Params.y * Smear.Params.w * Edge;
 		const float4 Tail = float4(Fade * (Ink + Emissive), Fade);
-		Result = Tail.a > Result.a ? Tail : Result;
+		if (Tail.a > Result.a)
+		{
+			Result = Tail;
+			OutDepth = TrailDepth;
+		}
 	}
 
 	return Result;
 }
 #endif
 
-void OutlinePS(float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0)
+void OutlinePS(
+	float4 SvPosition : SV_POSITION,
+	out float4 OutColor : SV_Target0
+#if OUTLINE_DOF_DEPTH
+	, out float OutCocDepth : SV_Target1
+#endif
+	)
 {
 	const int2 PixelPos = int2(SvPosition.xy);
 	const FOutlineSample Center = LoadDepths(PixelPos, LoadStencil(PixelPos));
@@ -362,13 +380,25 @@ void OutlinePS(float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0
 	}
 
 #if OUTLINE_SMEAR
-	const float4 Tail = ComputeSmear(PixelPos, Center, CenterStencil, bCenterVisible);
+	float TailDepth;
+	const float4 Tail = ComputeSmear(PixelPos, Center, CenterStencil, bCenterVisible, TailDepth);
 #else
 	const float4 Tail = 0;
+	const float TailDepth = Center.SceneDepth;
 #endif
 
 	// Lines sit on top of the tail; both are premultiplied.
 	OutColor = float4(Line.rgb + Tail.rgb * (1.0 - Line.a), Line.a + Tail.a * (1.0 - Line.a));
+
+#if OUTLINE_DOF_DEPTH
+	// Depth of field reads this in place of scene depth, so ink blurs as much as the object it outlines. A silhouette
+	// line sits on background pixels and would otherwise take the background's blur. The nearer depth wins, so a line
+	// seen through a wall blurs with the wall.
+	const float InkDepth = BestCoverage > 0.0 ? BestDepth : (Tail.a > 0.0 ? TailDepth : Center.SceneDepth);
+	OutCocDepth = InkDepth < Center.SceneDepth
+		? ConvertToDeviceZ(InkDepth)
+		: SceneTexturesStruct.SceneDepthTexture.Load(int3(PixelPos, 0)).r;
+#endif
 }
 
 // Lines are composited into a fresh texture rather than written back into scene color: the renderer keeps scene

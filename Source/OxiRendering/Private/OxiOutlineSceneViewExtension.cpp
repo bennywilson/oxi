@@ -5,6 +5,7 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "FXRenderingUtils.h"
 #include "GlobalShader.h"
+#include "OxiDepthOfField.h"
 #include "PixelShaderUtils.h"
 #include "PostProcess/PostProcessInputs.h"
 #include "PostProcess/PostProcessMaterialInputs.h"
@@ -26,6 +27,12 @@ static TAutoConsoleVariable<int32> CVarOxiOutlinesDirections(
 	TEXT("Search directions per pixel. 8: cheaper, slightly octagonal corners. 16: rounder corners."),
 	ECVF_RenderThreadSafe | ECVF_Scalability);
 
+static TAutoConsoleVariable<int32> CVarOxiOutlinesDOFDepth(
+	TEXT("r.Oxi.Outlines.DOFDepth"),
+	1,
+	TEXT("Depth of field blurs outlines by the depth of the object they outline. 0: by the depth behind the line, so silhouettes blur into the background."),
+	ECVF_RenderThreadSafe);
+
 DECLARE_GPU_STAT_NAMED(OxiOutlines, TEXT("Oxi Outlines"));
 
 // Mirrors FOxiSmearInstance in OxiOutline.usf.
@@ -42,6 +49,16 @@ struct FOxiSmearInstanceGPU
 // and quietly corrupts the whole palette. Update the matching struct in OxiOutline.usf when these change.
 static_assert(sizeof(FOxiOutlineStyleGPU) == 5 * sizeof(FVector4f), "FOxiOutlineStyleGPU must match FOxiOutlineStyle in OxiOutline.usf");
 static_assert(sizeof(FOxiSmearInstanceGPU) == 5 * sizeof(FVector4f), "FOxiSmearInstanceGPU must match FOxiSmearInstance in OxiOutline.usf");
+
+// Approximates DiaphragmDOF::IsEnabled, which the renderer doesn't export. A false positive only costs the extra target.
+static bool IsDepthOfFieldLikelyEnabled(const FSceneView& View)
+{
+	static const TConsoleVariableData<int32>* CVarDepthOfFieldQuality = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.DepthOfFieldQuality"));
+
+	return View.Family->EngineShowFlags.DepthOfField
+		&& (!CVarDepthOfFieldQuality || CVarDepthOfFieldQuality->GetValueOnRenderThread() > 0)
+		&& (View.FinalPostProcessSettings.DepthOfFieldFocalDistance > 0.f || View.FinalPostProcessSettings.DepthOfFieldDepthBlurRadius > 0.f);
+}
 
 // World position to pixels in this view's render-resolution rect. False when it is behind the camera.
 static bool ProjectToViewPixels(const FSceneView& View, const FIntRect& ViewRect, const FVector& WorldPosition, FVector2f& OutPixel, float& OutDepth)
@@ -72,7 +89,8 @@ public:
 
 	class FSixteenDirections : SHADER_PERMUTATION_BOOL("OUTLINE_16_DIRECTIONS");
 	class FSmear : SHADER_PERMUTATION_BOOL("OUTLINE_SMEAR");
-	using FPermutationDomain = TShaderPermutationDomain<FSixteenDirections, FSmear>;
+	class FDOFDepth : SHADER_PERMUTATION_BOOL("OUTLINE_DOF_DEPTH");
+	using FPermutationDomain = TShaderPermutationDomain<FSixteenDirections, FSmear, FDOFDepth>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
@@ -296,11 +314,21 @@ void FOxiOutlineSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder&
 	const bool bSmear = !SmearInstances.IsEmpty();
 	FRDGBufferRef SmearBuffer = CreateStructuredBuffer(GraphBuilder, TEXT("OxiOutline.Smears"), SmearInstances);
 
+	FRDGTextureRef CocDepthTexture = nullptr;
+	if (CVarOxiOutlinesDOFDepth.GetValueOnRenderThread() != 0 && IsDepthOfFieldLikelyEnabled(View))
+	{
+		// DOF samples this with scene depth's buffer UVs, so it takes scene depth's extent.
+		CocDepthTexture = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D((*Inputs.SceneTextures)->SceneDepthTexture->Desc.Extent, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_RenderTargetable),
+			TEXT("OxiOutline.CocDepth"));
+	}
+
 	// Detect lines. Written to a separate target because the pass reads scene color around each pixel.
 	{
 		FOxiOutlinePS::FPermutationDomain Permutation;
 		Permutation.Set<FOxiOutlinePS::FSixteenDirections>(CVarOxiOutlinesDirections.GetValueOnRenderThread() >= 16);
 		Permutation.Set<FOxiOutlinePS::FSmear>(bSmear);
+		Permutation.Set<FOxiOutlinePS::FDOFDepth>(CocDepthTexture != nullptr);
 		TShaderMapRef<FOxiOutlinePS> PixelShader(ShaderMap, Permutation);
 
 		FOxiOutlinePS::FParameters* Parameters = GraphBuilder.AllocParameters<FOxiOutlinePS::FParameters>();
@@ -320,9 +348,18 @@ void FOxiOutlineSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder&
 		Parameters->Smears = GraphBuilder.CreateSRV(SmearBuffer);
 		Parameters->NumSmears = SmearInstances.Num();
 		Parameters->RenderTargets[0] = FRenderTargetBinding(OutlineTexture, ERenderTargetLoadAction::ENoAction);
+		if (CocDepthTexture)
+		{
+			Parameters->RenderTargets[1] = FRenderTargetBinding(CocDepthTexture, ERenderTargetLoadAction::ENoAction);
+		}
 
 		// Fullscreen-triangle VS: its only output is SV_Position, matching the pixel shaders' input signature.
 		FPixelShaderUtils::AddFullscreenPass(GraphBuilder, ShaderMap, RDG_EVENT_NAME("OxiOutline Detect"), PixelShader, Parameters, ViewRect);
+	}
+
+	if (CocDepthTexture)
+	{
+		OxiDepthOfField::SetCocDepthTexture(GraphBuilder, View, CocDepthTexture);
 	}
 
 	// Composited later, in Composite_RenderThread. See FPendingOutline.
@@ -339,7 +376,7 @@ void FOxiOutlineSceneViewExtension::SubscribeToPostProcessingPass(EPostProcessin
 {
 	// Before depth of field: past the point where the renderer keeps scene color for screen-space tracing, but
 	// still early enough that lines are blurred with the objects they belong to, hidden by translucency, and
-	// that emissive ink blooms.
+	// that emissive ink blooms. The detect pass hands DOF the depth of each line's object (OxiDepthOfField.h).
 	if (Pass == EPostProcessingPass::BeforeDOF)
 	{
 		InOutPassCallbacks.Add(FPostProcessingPassDelegate::CreateRaw(this, &FOxiOutlineSceneViewExtension::Composite_RenderThread));
